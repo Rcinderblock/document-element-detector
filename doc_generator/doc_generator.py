@@ -227,13 +227,47 @@ def add_table_with_caption(document, random_table_format):
                                                                                                              255)
 
 
+def generate_plot_or_chart():
+    chart_type = random.choice(['line', 'bar', 'scatter', 'pie'])
+    fig, ax = plt.subplots()
+    if chart_type == 'line':
+        x = range(10)
+        y = [random.randint(1, 100) for _ in x]
+        ax.plot(x, y, color=random.choice(['red', 'green', 'blue']), linestyle=random.choice(['-', '--', '-.', ':']),
+                linewidth=random.uniform(0.5, 2.5))
+        ax.set_title(fake.sentence(nb_words=random.randint(1, 4)))
+        ax.set_xlabel(fake.word())
+        ax.set_ylabel(fake.word())
+
+    elif chart_type == 'bar':
+        x = range(5)
+        y = [random.randint(1, 100) for _ in x]
+        ax.bar(x, y, color=random.choice(['red', 'green', 'blue']))
+        ax.set_title(fake.sentence(nb_words=random.randint(1, 4)))
+        ax.set_xlabel(fake.word())
+        ax.set_ylabel(fake.word())
+
+    elif chart_type == 'scatter':
+        x = [random.uniform(0, 100) for _ in range(20)]
+        y = [random.uniform(0, 100) for _ in range(20)]
+        ax.scatter(x, y, color=random.choice(['red', 'green', 'blue']), s=random.randint(10, 200))
+        ax.set_title(fake.sentence(nb_words=random.randint(1, 4)))
+        ax.set_xlabel(fake.word())
+        ax.set_ylabel(fake.word())
+
+    elif chart_type == 'pie':
+        sizes = [random.randint(1, 10) for _ in range(4)]
+        labels = [fake.word(), fake.word(), fake.word(), fake.word()]
+        colors = ['red', 'green', 'blue', 'yellow']
+        ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+        ax.set_title(fake.sentence(nb_words=random.randint(1, 4)))
+
+
 def add_picture_with_caption(document, base_font_size):
     """ Функция добавления картинки вместе с подписью сразу """
     # Создание графика (будет вместо рисунков)
     plt.figure(figsize=(4, 3))
-    plt.plot([random.randint(0, 10) for _ in range(10)])
-    if random.random() < 0.2:
-        plt.title(fake.sentence(nb_words=random.randint(2, 5)))
+    generate_plot_or_chart()
     img_stream = io.BytesIO()
     plt.savefig(img_stream, format='PNG')
     plt.close()
