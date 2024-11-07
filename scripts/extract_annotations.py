@@ -1,12 +1,14 @@
+# TODO [future, realization]: Реализация этого скрипта требует полного реформирования
 import os
 import re
 import json
-import fitz  # PyMuPDF
+import fitz
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextBoxHorizontal, LTImage, LTChar
 from PIL import Image
 from tqdm import tqdm
 import camelot
+
 
 # Папки с данными
 PDF_DIR = 'data/pdf/'
@@ -18,14 +20,14 @@ os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
 
 def is_header(element, page_height, threshold=50):
     """
-    Определяет, является ли элемент колонтитулом (header).
+    Определяет, является ли элемент колонтитулом.
     """
     # Если y0 элемента выше определённого порога, считаем его колонтитулом
     return element[1] > (page_height - threshold)
 
 def is_footer(element, page_height, threshold=50):
     """
-    Определяет, является ли элемент нижним колонтитулом (footer).
+    Определяет, является ли элемент нижним колонтитулом.
     """
     # Если y1 элемента ниже определённого порога, считаем его нижним колонтитулом
     return element[3] < threshold
@@ -35,7 +37,7 @@ def extract_tables_camelot(pdf_path, page_num):
     Извлекает таблицы с помощью Camelot и возвращает их координаты.
     """
     try:
-        tables = camelot.read_pdf(pdf_path, pages=str(page_num + 1), flavor='stream')  # 'stream' для таблиц без явных границ
+        tables = camelot.read_pdf(pdf_path, pages=str(page_num + 1), flavor='stream')
         table_coords = []
         for table in tables:
             bbox = table._bbox  # (x1, y1, x2, y2)
