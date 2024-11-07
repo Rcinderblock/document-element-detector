@@ -74,36 +74,40 @@ def add_header_footer(document, base_font_size):
     run.font.size = Pt(base_font_size - 4)
 
 
-def add_heading(document, base_font_size):
+class RandomHeadingFormat:
+    def __init__(self, random_paragraph_format):
+        self.font_size_1 = random_paragraph_format.font_size + random.choice([2, 4, 6, 8])
+        self.font_size_2 = random_paragraph_format.font_size + random.choice([2, 4, 6])
+        self.font_size_3 = random_paragraph_format.font_size + random.choice([2, 4])
+        self.bold = random.random() < 0.7
+        self.italic = random.random() < 0.3
+        self.alignment = random.choices([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT], weights=[30, 70, 30])[0]
+
+
+def add_heading(document, random_heading_format):
     """
     Функция с добавлением заголовка
     """
     # Генерация заголовка
     level = random.randint(1, 3)  # Уровень заголовка
     if level == 1:
-        font_size = base_font_size + random.choice([2, 4, 6, 8])
+        font_size = random_heading_format.font_size_1
     elif level == 2:
-        font_size = base_font_size + random.choice([2, 4, 6])
+        font_size = random_heading_format.font_size_2
     else:
-        font_size = base_font_size + random.choice([2, 4])
+        font_size = random_heading_format.font_size_3
 
     heading_text = fake.sentence(nb_words=random.randint(3, 7)) if random.choice([True, False]) else \
         text_mimesis.text(quantity=1).split('.')[0]  # Рандомная генерация фейкером / мимезисом
     heading = document.add_heading(level=level)
     run = heading.add_run(heading_text)
-    run.bold = random.random() < 0.7
-    run.italic = random.random() < 0.3
+    run.bold = random_heading_format.bold
+    run.italic = random_heading_format.italic
     run.font.size = Pt(font_size)
     run.font.color.rgb = RGBColor(0, 0, 0)
 
     # Выравнивание заголовка (по условию задачи чаще центр)
-    alignment = random.choices(['left', 'center', 'right'], weights=[30, 70, 30])[0]
-    if alignment == 'left':
-        heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    elif alignment == 'center':
-        heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    else:
-        heading.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    alignment = random_heading_format.alignment
 
     # Добавление нумерации заголовка с вероятностью 50%
     if random.random() < 0.5 and level == 1:
@@ -112,19 +116,29 @@ def add_heading(document, base_font_size):
         heading.text = numbering + " " + heading_text
 
 
-def add_paragraph(document, base_font_size):
+class RandomParagraphFormat:
+    def __init__(self):
+        self.left_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
+        self.space_before = random.randint(0, 10)
+        self.space_after = random.randint(0, 10)
+        self.first_line_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
+        self.alignment = random.choice([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.JUSTIFY])
+        self.font_size = random.randint(8, 14)
+        self.font_name = random.choice(['Times New Roman', 'Arial', 'Calibri', 'Georgia', 'Verdana', 'Tahoma', 'Garamond', 'Helvetica', 'Courier New', 'Trebuchet MS', 'Comic Sans'])
+
+
+def add_paragraph(document, random_paragraph_format):
     """ Функция генерации обычного текста """
     # Генерация абзаца
     paragraph = document.add_paragraph()
     paragraph_format = paragraph.paragraph_format
-    paragraph_format.left_indent = Inches(0.25) if random.choice([True, False]) else Inches(
-        0)  # Рандомная красная строка
-    paragraph_format.space_before = Pt(random.randint(0, 10))
-    paragraph_format.space_after = Pt(random.randint(0, 10))
-    paragraph_format.first_line_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
+    paragraph_format.left_indent = random_paragraph_format.left_indent  # Рандомная красная строка
+    paragraph_format.space_before = Pt(random_paragraph_format.space_before)
+    paragraph_format.space_after = Pt(random_paragraph_format.space_after)
+    paragraph_format.first_line_indent = random_paragraph_format.first_line_indent
 
     # Выравнивание абзаца
-    alignment = random.choice([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.JUSTIFY])
+    alignment = random_paragraph_format.alignment
     paragraph.alignment = alignment
 
     # Генерация текста для абзаца
@@ -133,16 +147,27 @@ def add_paragraph(document, base_font_size):
     else:
         text = text_mimesis.text(quantity=random.randint(5, 10))
     run = paragraph.add_run(text)
-    run.font.size = Pt(base_font_size)
+    run.font.size = Pt(random_paragraph_format.font_size)
+    run.font.name = random_paragraph_format.font_name
 
 
-def add_table_with_caption(document, base_font_size, table_styles):
+class RandomTableFormat:
+    def __init__(self, random_paragraph_format, table_styles):
+        self.caption_size = max(random_paragraph_format.font_size - random.randint(1, 2), 8)
+        self.caption_alignment = random.choice([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.JUSTIFY])
+        self.caption_position = random.choice([0, 1])
+        self.caption_name = random.choice(['Times New Roman', 'Arial', 'Calibri', 'Georgia', 'Verdana', 'Tahoma', 'Garamond', 'Helvetica', 'Courier New', 'Trebuchet MS', 'Comic Sans'])
+        self.alignment = random.choices([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.CENTER], weights=[30, 70, 30])[0]
+        if random.choice([True, False]) and table_styles:
+            self.table_style = random.choice(table_styles)
+        else:
+            self.table_style = 'Table Grid'
+
+
+def add_table_with_caption(document, random_table_format):
     """ Генерация таблицы вместе с подписью сразу """
     # Генерация подписи для таблицы (первее, т.к. сначала подпись, потом -- таблица)
     caption_text = fake.sentence(nb_words=random.randint(3, 7))
-    caption_size = base_font_size - random.randint(1, 2)  # Размер шрифта подписи на 1-2 меньше основного
-    # Размер подписи не меньше 8
-    caption_size = max(caption_size, 8)
 
     if random.choice([True, False]):
         caption_text = f"Табл. {random.randint(1, 100)} - {caption_text}"
@@ -151,31 +176,36 @@ def add_table_with_caption(document, base_font_size, table_styles):
     else:
         caption_text = f"Таблица. {caption_text}"
 
-    caption_paragraph = document.add_paragraph(caption_text)
-    caption_paragraph.style = 'Caption'
-    run = caption_paragraph.runs[0]
-    run.font.size = Pt(caption_size)
-    run.italic = True
-    run.font.color.rgb = RGBColor(0, 0, 0)
-
-    # Выравнивание подписи
-    alignment = random.choices(['left', 'center', 'right'], weights=[30, 70, 30])[0]
-    if alignment == 'left':
-        caption_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    elif alignment == 'center':
-        caption_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    else:
-        caption_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    if random_table_format.caption_position == 0:
+        caption_paragraph = document.add_paragraph(caption_text)
+        caption_paragraph.style = 'Caption'
+        run = caption_paragraph.runs[0]
+        run.font.size = Pt(random_table_format.caption_size)
+        run.alignment = random_table_format.caption_alignment
+        run.font.name = random_table_format.caption_name
+        run.italic = True
+        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.alignment = random_table_format.alignment
 
     num_rows = random.randint(3, 8)
     num_cols = random.randint(3, 6)
     table = document.add_table(rows=num_rows, cols=num_cols)
-    table.alignment = random.choice([WD_TABLE_ALIGNMENT.LEFT, WD_TABLE_ALIGNMENT.CENTER, WD_TABLE_ALIGNMENT.RIGHT])
+    table.alignment = random_table_format.alignment
+
+    if random_table_format.caption_position == 1:
+        caption_paragraph = document.add_paragraph(caption_text)
+        caption_paragraph.style = 'Caption'
+        run = caption_paragraph.runs[0]
+        run.font.size = Pt(random_table_format.caption_size)
+        run.alignment = random_table_format.caption_alignment
+        run.font.name = random_table_format.caption_name
+        run.italic = True
+        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.alignment = random_table_format.alignment
+
     # Выбор стиля таблицы
-    if random.choice([True, False]) and table_styles:
-        table.style = random.choice(table_styles)
-    else:
-        table.style = 'Table Grid'
+    table_style = random_table_format.table_style
+
     for row in table.rows:
         for cell in row.cells:
             text = str(fake.random_number(digits=random.randint(1, 5))) if random.random() < 0.3 else fake.sentence(
@@ -406,20 +436,21 @@ def generate_document(path):
 
     # Установка начального шрифта
     style = document.styles['Normal']
-    font = style.font
-    font.name = 'Times New Roman'
-    base_font_size = random.randint(8, 16)
-    font.size = Pt(base_font_size)
     latex_data = pd.read_csv(r'latex_for_formulas.csv', index_col=False)['formula']
 
     for i in range(NUM_ITERATIONS):
+
+        random_paragraph_format = RandomParagraphFormat()
+        random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
+        random_heading_format = RandomHeadingFormat(random_paragraph_format)
+
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
         if i != 0:
             new_sect = document.add_section(WD_SECTION.NEW_PAGE)
             reset_multicolumn(new_sect)  # TODO [check actuality]: проверить надобность этой строки
         else:
-            add_header_footer(document, base_font_size)
+            add_header_footer(document, random_paragraph_format.font_size)
 
         # Изменение ориентации страницы на вертикальную с вероятностью 85%
         if random.random() < 0.85:
@@ -427,16 +458,16 @@ def generate_document(path):
             change_orientation(document, landscape=landscape)
 
         # Добавление заголовка
-        add_heading(document, base_font_size)
+        add_heading(document, random_heading_format)
 
         # Добавление абзаца
-        add_paragraph(document, base_font_size)
+        add_paragraph(document, random_paragraph_format)
 
         # Добавление таблицы с подписью
-        add_table_with_caption(document, base_font_size, table_styles)
+        add_table_with_caption(document, random_table_format)
 
         # Добавление абзаца
-        add_paragraph(document, base_font_size)
+        add_paragraph(document, random_paragraph_format)
 
         # Добавление списков
         if random.random() < 0.3:
@@ -445,21 +476,21 @@ def generate_document(path):
             add_bulleted_list(document)
 
         # Добавление рисунка с подписью
-        add_picture_with_caption(document, base_font_size)
+        add_picture_with_caption(document, random_paragraph_format.font_size)
 
         # Добавление формул
         get_formula(document, latex_data)
 
         # Добавление абзаца
-        add_paragraph(document, base_font_size)
+        add_paragraph(document, random_paragraph_format)
 
         # Добавление сносок
         if random.random() < 0.4:
-            add_footnote(document, base_font_size)
+            add_footnote(document, random_paragraph_format.font_size)
 
         # Несколько колонок
         if random.random() < 0.15:
-            add_multi_column_text(document, base_font_size)
+            add_multi_column_text(document, random_paragraph_format.font_size)
 
     # Сохранение документа
     document.save(path)
