@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import io
 import random
 from faker import Faker
+import pandas as pd
 
 # Faker будем использовать и для английского и для русского, т.к. в примере документа оба языка
 fake = Faker(['en_US', 'ru_RU'])
@@ -280,6 +281,13 @@ def generate_formula():
     return f"{expr} = {result}"
 
 
+def get_formula(doc, latex_data):
+    p = doc.add_paragraph()
+    latex_ = r'{}'.format(latex_data[random.randint(a=0, b=2371)])
+
+    math2docx.add_math(p, latex_)
+
+
 def add_formula(document):
     """ Вызвать функцию == добавить формулу в документ"""
     formula_str = generate_formula()
@@ -411,6 +419,7 @@ def generate_document(path):
     font.name = 'Times New Roman'
     base_font_size = random.randint(8, 16)
     font.size = Pt(base_font_size)
+    latex_data = pd.read_csv('latex_for_formulas.csv', index_col=False)['formula']
 
     for i in range(NUM_ITERATIONS):
         # Добавление новой секции на новой странице, кроме первой
@@ -449,6 +458,7 @@ def generate_document(path):
 
         # Добавление формул
         add_formula(document)
+        # get_formula(document, latex_data)
 
         # Добавление абзаца
         add_paragraph(document, base_font_size)
