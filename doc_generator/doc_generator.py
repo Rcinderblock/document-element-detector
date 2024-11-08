@@ -138,8 +138,7 @@ def add_paragraph(document, random_paragraph_format):
     paragraph_format.first_line_indent = random_paragraph_format.first_line_indent
 
     # Выравнивание абзаца
-    alignment = random_paragraph_format.alignment
-    paragraph.alignment = alignment
+    paragraph.alignment = random_paragraph_format.alignment
 
     # Генерация текста для абзаца
     if random.choice([True, False]):
@@ -266,7 +265,9 @@ def generate_plot_or_chart():
 def add_picture_with_caption(document, base_font_size):
     """ Функция добавления картинки вместе с подписью сразу """
     # Создание графика (будет вместо рисунков)
-    plt.figure(figsize=(4, 3))
+    w = random.randint(4, 8)
+    h = w - random.randint(1, 3)
+    plt.figure(figsize=(w, h))
     generate_plot_or_chart()
     img_stream = io.BytesIO()
     plt.savefig(img_stream, format='PNG')
@@ -379,6 +380,35 @@ def add_bulleted_list(document):
         paragraph.paragraph_format.space_after = Pt(0)
 
 
+def add_paragraph_with_footnote(document, footnotes, random_paragraph_format):
+    text = fake.text(max_nb_chars=random.randint(50, 300))
+    footnote_text = fake.sentence(nb_words=random.randint(5, 10))
+    paragraph = document.add_paragraph()
+    run = paragraph.add_run(f'{fake.text(max_nb_chars=random.randint(50, 300))} [^{len(footnotes) + 1}]')
+    run.font.name = random_paragraph_format.font_name
+    run.font.size = Pt(random_paragraph_format.font_size)
+    paragraph_format = paragraph.paragraph_format
+    paragraph_format.left_indent = random_paragraph_format.left_indent
+    paragraph_format.space_before = Pt(random_paragraph_format.space_before)
+    paragraph_format.space_after = Pt(random_paragraph_format.space_after)
+    paragraph_format.first_line_indent = random_paragraph_format.first_line_indent
+    paragraph.alignment = random_paragraph_format.alignment
+    footnotes.append((len(footnotes) + 1, footnote_text))
+
+
+def add_footnotes_section(document, footnotes, ):
+    document.add_paragraph()
+    for fn_count, fn_text in footnotes:
+        fn_paragraph = document.add_paragraph()
+        index_run = fn_paragraph.add_run(f'[^ {fn_count}] ')
+        index_run.bold = True
+        fn_paragraph.add_run(fn_text)
+        fn_paragraph.style = document.styles['Normal']
+        fn_paragraph.paragraph_format.left_indent = Pt(18)
+        fn_paragraph.paragraph_format.space_after = Pt(2)
+        fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+
 def add_footnote(document, base_font_size):
     """ Вызвать функцию == добавить сноску в документ
     Сноска в данном понимании -- маленький текст в конце главы,
@@ -477,6 +507,8 @@ def generate_document(path):
         random_paragraph_format = RandomParagraphFormat()
         random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
         random_heading_format = RandomHeadingFormat(random_paragraph_format)
+        footnotes_type = random.choice([0, 1, 2])
+        footnotes = []
 
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
@@ -503,6 +535,10 @@ def generate_document(path):
         # Добавление абзаца
         add_paragraph(document, random_paragraph_format)
 
+        if footnotes_type == 2:
+            for _ in range(random.randint(0, 5)):
+                add_paragraph_with_footnote(document, footnotes, random_paragraph_format)
+
         # Добавление списков
         if random.random() < 0.3:
             add_numbered_list(document)
@@ -519,12 +555,15 @@ def generate_document(path):
         add_paragraph(document, random_paragraph_format)
 
         # Добавление сносок
-        if random.random() < 0.4:
+        if random.random() < 0.4 and footnotes_type == 1:
             add_footnote(document, random_paragraph_format.font_size)
 
         # Несколько колонок
         if random.random() < 0.15:
             add_multi_column_text(document, random_paragraph_format.font_size)
+
+        if footnotes_type == 2 and len(footnotes) > 0:
+            add_footnotes_section(document, footnotes)
 
     # Сохранение документа
     document.save(path)
