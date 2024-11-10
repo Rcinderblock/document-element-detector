@@ -207,7 +207,7 @@ def add_table_with_caption(document, random_table_format):
         run.alignment = random_table_format.alignment
 
     # Выбор стиля таблицы
-    table_style = random_table_format.table_style
+    table.style = random_table_format.table_style
 
     for row in table.rows:
         for cell in row.cells:
