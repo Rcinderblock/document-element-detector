@@ -15,10 +15,14 @@ import random
 from faker import Faker
 import pandas as pd
 
+from mimesis import Generic
+from mimesis.locales import Locale
+from mimesis.random import Random
+
 # Faker будем использовать и для английского и для русского, т.к. в примере документа оба языка
 fake = Faker(['en_US', 'ru_RU'])
 text_mimesis = Text('ru')
-NUM_ITERATIONS = 5  # Количество итераций для генерации содержимого
+NUM_ITERATIONS = 100  # Количество итераций для генерации содержимого
 
 COLORS = """000000 000080 00008B 0000CD 0000FF 006400 008000 008080 008B8B 00BFFF 00CED1 
 00FA9A 00FF00 00FF7F 00FFFF 191970 1E90FF 20B2AA 228B22 2E8B57 2F4F4F 32CD32 
@@ -89,7 +93,7 @@ def add_heading(document, random_heading_format):
     Функция с добавлением заголовка
     """
     # Генерация заголовка
-    level = random.randint(1, 3)  # Уровень заголовка
+    level = random.randint(0, 3)  # Уровень заголовка
     if level == 1:
         font_size = random_heading_format.font_size_1
     elif level == 2:
@@ -488,6 +492,88 @@ def add_multi_column_text(document, base_font_size):
             run.font.size = Pt(base_font_size)
 
 
+def get_paragraph(doc, based_font_size):
+    generic = Generic(locale=Locale.RU)
+    random = Random()
+
+    colums = random.weighted_choice({'2': 0.5, '3': 0.5})
+    if colums == '2':
+        table = doc.add_table(rows=1, cols=2)
+
+        left_cell = table.cell(0, 0)
+        right_cell = table.cell(0, 1)
+
+        quantity = random.randint(a=30, b=60)
+        left_cell.text = ' '.join(generic.text.words(quantity=quantity))
+        left_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+        left_cell.paragraphs[0].runs[0].font.size = Pt(based_font_size)
+        right_cell.text = ' '.join(generic.text.words(quantity=quantity))
+        right_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+        right_cell.paragraphs[0].runs[0].font.size = Pt(based_font_size)
+
+    elif colums == '3':
+        table = doc.add_table(rows=1, cols=3)
+
+        left_cell = table.cell(0, 0)
+        center_cell = table.cell(0, 1)
+        right_cell = table.cell(0, 2)
+
+        quantity = random.randint(a=20, b=40)
+        left_cell.text = ' '.join(generic.text.words(quantity=quantity))
+        left_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+        left_cell.paragraphs[0].runs[0].font.size = Pt(based_font_size)
+        right_cell.text = ' '.join(generic.text.words(quantity=quantity))
+        right_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+        right_cell.paragraphs[0].runs[0].font.size = Pt(based_font_size)
+        center_cell.text = ' '.join(generic.text.words(quantity=quantity))
+        center_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+        center_cell.paragraphs[0].runs[0].font.size = Pt(based_font_size)
+
+
+def get_footnote(doc, based_font_size):
+    generic = Generic(locale=Locale.RU)
+    random = Random()
+
+    section = doc.sections[0]
+    paragraph = section.footer.paragraphs[0]
+    paragraph.style.font.size = Pt(based_font_size)
+
+    paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    power_utf8 = {1: '\u00B9', 2: '\u00B2', 3: '\u00B3', 4: '\u2074'}
+    for note in range(1, random.randint(a=2, b=5)):
+        random_word = generic.text.words(quantity=1)
+        random_sentence = generic.text.words(quantity=random.randint(a=3, b=6))
+
+        footnote_text = f"{power_utf8[note]}{random_word[0]} — {' '.join(random_sentence)} \n"
+        paragraph.add_run(footnote_text).italic = True
+
+
+def get_image(doc, based_font_size, num_of_pictures):
+    random = Random()
+    generic = Generic(locale=Locale.RU)
+
+    image_note = random.randint(a=0, b=1)
+    if image_note == 0:
+        paragraph = doc.add_paragraph()
+        run = paragraph.add_run(str('Рисунок ' + str(num_of_pictures) + ' — ' + ' '.join(
+            generic.text.words(quantity=random.randint(a=1, b=3)))))
+        run.font.size = Pt(based_font_size)
+        num_of_pictures += 1
+    if random.weighted_choice({0: 0.5, 1: 0.5}) > 0:
+        doc.add_picture(
+            'doc_generator/Caltech101/' + str(random.randint(a=1, b=9142)) + '.jpg',
+            width=Inches(random.choice_enum_item((3.5, 4, 4.5))))
+    else:
+        doc.add_picture('doc_generator/PlotQA/' + str(random.randint(a=0, b=33656)) + '.png',
+                             width=Inches(random.choice_enum_item((5, 5.5, 6))))
+    if image_note == 1:
+        paragraph = doc.add_paragraph()
+        run = paragraph.add_run(str('Рисунок ' + str(num_of_pictures) + ' — ' + ' '.join(
+            generic.text.words(quantity=random.randint(a=1, b=3)))))
+        run.font.size = Pt(based_font_size)
+        num_of_pictures += 1
+
+
 def generate_document(path):
     """
     Запуск генерации документа.
@@ -497,6 +583,8 @@ def generate_document(path):
     """
     document = Document()
     table_styles = [style.name for style in document.styles if style.type == WD_STYLE_TYPE.TABLE]
+    num_of_pictures = 1
+
 
     # Установка начального шрифта
     style = document.styles['Normal']
@@ -507,7 +595,7 @@ def generate_document(path):
         random_paragraph_format = RandomParagraphFormat()
         random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
         random_heading_format = RandomHeadingFormat(random_paragraph_format)
-        footnotes_type = random.choice([0, 1, 2])
+        footnotes_type = random.choice([0, 1, 2, 3])
         footnotes = []
 
         # Добавление новой секции на новой странице, кроме первой
@@ -555,15 +643,15 @@ def generate_document(path):
         add_paragraph(document, random_paragraph_format)
 
         # Добавление сносок
-        if random.random() < 0.4 and footnotes_type == 1:
+        if random.random() < 0.2 and footnotes_type == 1:
             add_footnote(document, random_paragraph_format.font_size)
-
-        # Несколько колонок
-        if random.random() < 0.15:
-            add_multi_column_text(document, random_paragraph_format.font_size)
-
+        elif random.random() < 0.3 and footnotes_type == 3:
+            get_footnote(document, base_font_size)
+            
         if footnotes_type == 2 and len(footnotes) > 0:
             add_footnotes_section(document, footnotes)
+
+        get_paragraph(document, base_font_size)
 
     # Сохранение документа
     document.save(path)
