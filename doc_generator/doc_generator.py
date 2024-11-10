@@ -269,9 +269,6 @@ def generate_plot_or_chart():
 def add_picture_with_caption(document, base_font_size):
     """ Функция добавления картинки вместе с подписью сразу """
     # Создание графика (будет вместо рисунков)
-    w = random.randint(4, 8)
-    h = w - random.randint(1, 3)
-    plt.figure(figsize=(w, h))
     generate_plot_or_chart()
     img_stream = io.BytesIO()
     plt.savefig(img_stream, format='PNG')
@@ -646,12 +643,12 @@ def generate_document(path):
         if random.random() < 0.2 and footnotes_type == 1:
             add_footnote(document, random_paragraph_format.font_size)
         elif random.random() < 0.3 and footnotes_type == 3:
-            get_footnote(document, base_font_size)
+            get_footnote(document, random_paragraph_format.font_size)
             
         if footnotes_type == 2 and len(footnotes) > 0:
             add_footnotes_section(document, footnotes)
 
-        get_paragraph(document, base_font_size)
+        get_paragraph(document, random_paragraph_format.font_size)
 
     # Сохранение документа
     document.save(path)
