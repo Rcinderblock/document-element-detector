@@ -320,33 +320,6 @@ def add_picture_with_caption(document, base_font_size):
     document.add_paragraph()  # Добавляем пустой параграф для отделения
 
 
-def generate_formula():
-    """ Функция генерирует рандомную формулу в виде a {+|-|*|:} b = c"""
-    # Генерация случайных чисел для выражений
-    operand1 = random.randint(-10000, 10000)
-    operand2 = random.randint(1, 10000)  # Избегаем деления на 0
-
-    # Случайный выбор операции
-    operation = random.choice(['+', '-', '*', '/'])
-
-    # Формируем выражение в зависимости от операции
-    if operation == '+':
-        expr = f"{operand1} + {operand2}"
-        result = operand1 + operand2
-    elif operation == '-':
-        expr = f"{operand1} - {operand2}"
-        result = operand1 - operand2
-    elif operation == '*':
-        expr = f"{operand1} * {operand2}"
-        result = operand1 * operand2
-    else:
-        expr = f"{operand1} / {operand2}"
-        result = operand1 / operand2
-
-    # Формируем итоговое выражение в формате "что-то (операция) с чем-то = что-то"
-    return f"{expr} = {result}"
-
-
 def get_formula(doc, latex_data):
     """ Вызвать функцию == добавить формулу в документ"""
     paragraph = doc.add_paragraph()
@@ -381,29 +354,13 @@ def add_bulleted_list(document):
         paragraph.paragraph_format.space_after = Pt(0)
 
 
-def add_paragraph_with_footnote(document, footnotes, random_paragraph_format):
-    text = fake.text(max_nb_chars=random.randint(50, 300))
-    footnote_text = fake.sentence(nb_words=random.randint(5, 10))
-    paragraph = document.add_paragraph()
-    run = paragraph.add_run(f'{fake.text(max_nb_chars=random.randint(50, 300))} [^{len(footnotes) + 1}]')
-    run.font.name = random_paragraph_format.font_name
-    run.font.size = Pt(random_paragraph_format.font_size)
-    paragraph_format = paragraph.paragraph_format
-    paragraph_format.left_indent = random_paragraph_format.left_indent
-    paragraph_format.space_before = Pt(random_paragraph_format.space_before)
-    paragraph_format.space_after = Pt(random_paragraph_format.space_after)
-    paragraph_format.first_line_indent = random_paragraph_format.first_line_indent
-    paragraph.alignment = random_paragraph_format.alignment
-    footnotes.append((len(footnotes) + 1, footnote_text))
-
-
-def add_footnotes_section(document, footnotes, ):
+def add_footnotes_section(document):
     document.add_paragraph()
-    for fn_count, fn_text in footnotes:
+    for fn_count in range(random.randint(1, 10)):
         fn_paragraph = document.add_paragraph()
-        index_run = fn_paragraph.add_run(f'[^ {fn_count}] ')
+        index_run = fn_paragraph.add_run(f'[{fn_count}] ')
         index_run.bold = True
-        fn_paragraph.add_run(fn_text)
+        fn_paragraph.add_run(fake.sentence(nb_words=random.randint(3, 7)))
         fn_paragraph.style = document.styles['Normal']
         fn_paragraph.paragraph_format.left_indent = Pt(18)
         fn_paragraph.paragraph_format.space_after = Pt(2)
@@ -581,19 +538,27 @@ def generate_document(path):
     document = Document()
     table_styles = [style.name for style in document.styles if style.type == WD_STYLE_TYPE.TABLE]
     num_of_pictures = 1
-
-
-    # Установка начального шрифта
-    style = document.styles['Normal']
     latex_data = pd.read_csv(r'latex_for_formulas.csv', index_col=False)['formula']
+
+    element_funcs = []
+    element_funcs += [lambda: add_heading(document, random_heading_format)] * random.randint(1, 3)
+    element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(1, 5)
+    element_funcs += [lambda: add_table_with_caption(document, random_table_format)] * random.randint(1, 2)
+    element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
+    element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
+    element_funcs += [lambda: get_paragraph(document, random_paragraph_format.font_size)] * random.randint(1, 3)
+
 
     for i in range(NUM_ITERATIONS):
 
+        # Начальные характеристики документа
         random_paragraph_format = RandomParagraphFormat()
         random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
         random_heading_format = RandomHeadingFormat(random_paragraph_format)
-        footnotes_type = random.choice([0, 1, 2, 3])
-        footnotes = []
+        footnotes_type = random.choice([0, 1, 2])
+
+        if footnotes_type == 2:
+            element_funcs += [lambda: add_footnote(document, random_paragraph_format.font_size)]
 
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
@@ -614,41 +579,12 @@ def generate_document(path):
         # Добавление абзаца
         add_paragraph(document, random_paragraph_format)
 
-        # Добавление таблицы с подписью
-        add_table_with_caption(document, random_table_format)
+        random.shuffle(element_funcs)
+        for func in element_funcs:
+            func()
 
-        # Добавление абзаца
-        add_paragraph(document, random_paragraph_format)
-
-        if footnotes_type == 2:
-            for _ in range(random.randint(0, 5)):
-                add_paragraph_with_footnote(document, footnotes, random_paragraph_format)
-
-        # Добавление списков
-        if random.random() < 0.3:
-            add_numbered_list(document)
-        elif random.random() < 0.7:
-            add_bulleted_list(document)
-
-        # Добавление рисунка с подписью
-        add_picture_with_caption(document, random_paragraph_format.font_size)
-
-        # Добавление формул
-        get_formula(document, latex_data)
-
-        # Добавление абзаца
-        add_paragraph(document, random_paragraph_format)
-
-        # Добавление сносок
-        if random.random() < 0.2 and footnotes_type == 1:
-            add_footnote(document, random_paragraph_format.font_size)
-        elif random.random() < 0.3 and footnotes_type == 3:
-            get_footnote(document, random_paragraph_format.font_size)
-            
-        if footnotes_type == 2 and len(footnotes) > 0:
-            add_footnotes_section(document, footnotes)
-
-        get_paragraph(document, random_paragraph_format.font_size)
+        if footnotes_type == 1:
+            add_footnotes_section(document)
 
     # Сохранение документа
     document.save(path)
