@@ -22,7 +22,7 @@ from mimesis.random import Random
 # Faker будем использовать и для английского и для русского, т.к. в примере документа оба языка
 fake = Faker(['en_US', 'ru_RU'])
 text_mimesis = Text('ru')
-NUM_ITERATIONS = 100  # Количество итераций для генерации содержимого
+NUM_ITERATIONS = 5  # Количество итераций для генерации содержимого
 
 COLORS = """000000 000080 00008B 0000CD 0000FF 006400 008000 008080 008B8B 00BFFF 00CED1 
 00FA9A 00FF00 00FF7F 00FFFF 191970 1E90FF 20B2AA 228B22 2E8B57 2F4F4F 32CD32 
@@ -207,7 +207,7 @@ def add_table_with_caption(document, random_table_format):
         run.alignment = random_table_format.alignment
 
     # Выбор стиля таблицы
-    table_style = random_table_format.table_style
+    table.style = random_table_format.table_style
 
     for row in table.rows:
         for cell in row.cells:
@@ -320,33 +320,6 @@ def add_picture_with_caption(document, base_font_size):
     document.add_paragraph()  # Добавляем пустой параграф для отделения
 
 
-def generate_formula():
-    """ Функция генерирует рандомную формулу в виде a {+|-|*|:} b = c"""
-    # Генерация случайных чисел для выражений
-    operand1 = random.randint(-10000, 10000)
-    operand2 = random.randint(1, 10000)  # Избегаем деления на 0
-
-    # Случайный выбор операции
-    operation = random.choice(['+', '-', '*', '/'])
-
-    # Формируем выражение в зависимости от операции
-    if operation == '+':
-        expr = f"{operand1} + {operand2}"
-        result = operand1 + operand2
-    elif operation == '-':
-        expr = f"{operand1} - {operand2}"
-        result = operand1 - operand2
-    elif operation == '*':
-        expr = f"{operand1} * {operand2}"
-        result = operand1 * operand2
-    else:
-        expr = f"{operand1} / {operand2}"
-        result = operand1 / operand2
-
-    # Формируем итоговое выражение в формате "что-то (операция) с чем-то = что-то"
-    return f"{expr} = {result}"
-
-
 def get_formula(doc, latex_data):
     """ Вызвать функцию == добавить формулу в документ"""
     paragraph = doc.add_paragraph()
@@ -401,7 +374,7 @@ def add_footnotes_section(document, footnotes, ):
     document.add_paragraph()
     for fn_count, fn_text in footnotes:
         fn_paragraph = document.add_paragraph()
-        index_run = fn_paragraph.add_run(f'[^ {fn_count}] ')
+        index_run = fn_paragraph.add_run(f'[{fn_count}] ')
         index_run.bold = True
         fn_paragraph.add_run(fn_text)
         fn_paragraph.style = document.styles['Normal']
@@ -580,21 +553,17 @@ def generate_document(path):
     """
     document = Document()
     table_styles = [style.name for style in document.styles if style.type == WD_STYLE_TYPE.TABLE]
-    num_of_pictures = 1
 
+    # Начальные характеристики документа
+    random_paragraph_format = RandomParagraphFormat()
+    random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
+    random_heading_format = RandomHeadingFormat(random_paragraph_format)
+    footnotes_type = random.choice([0, 1, 2, 3])
+    footnotes = []
 
-    # Установка начального шрифта
-    style = document.styles['Normal']
-    latex_data = pd.read_csv(r'latex_for_formulas.csv', index_col=False)['formula']
+    latex_data = pd.read_csv(r'doc_generator/latex_for_formulas.csv', index_col=False)['formula']
 
     for i in range(NUM_ITERATIONS):
-
-        random_paragraph_format = RandomParagraphFormat()
-        random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
-        random_heading_format = RandomHeadingFormat(random_paragraph_format)
-        footnotes_type = random.choice([0, 1, 2, 3])
-        footnotes = []
-
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
         if i != 0:

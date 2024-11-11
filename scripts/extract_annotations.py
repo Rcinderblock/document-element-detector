@@ -5,13 +5,24 @@ import fitz  # PyMuPDF
 from PIL import Image, ImageDraw
 
 
+# Папки с данными
+PDF_DIR = 'data/pdf/'
+ANNOTATIONS_DIR = 'data/annotations/'
+
+# Создание директории для аннотаций, если она не существует
+os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
+
+
 class DocumentAnalyzer:
+
     def extract_text_from_block(self, block):
         text = ""
         for line in block.get('lines', []):
             for span in line.get('spans', []):
                 text += span.get('text', '') + " "
         return text.strip()
+
+
     def __init__(self):
         self.colors = {
             'title': (255, 0, 0),  # Red
@@ -24,11 +35,11 @@ class DocumentAnalyzer:
             'header': (255, 255, 0),  # Yellow
             'footer': (128, 128, 128),  # Gray
             'footnote': (0, 128, 0),  # Dark Green
-            'formula': (139, 69, 19)  # Saddle Brown
+            'formula': (228, 228, 100)  # Yellow
         }
 
     def extract_coordinates(self, pdf_path):
-        """Extract coordinates of different elements from PDF."""
+        """Извлекает координаты всех элементов, классифицируя их"""
         doc = fitz.open(pdf_path)
         page_data = []
 
@@ -40,6 +51,7 @@ class DocumentAnalyzer:
                 'image_path': f'page_{page_num + 1}.png',
                 'title': [],
                 'paragraph': [],
+                'table': [],
                 'picture': [],
                 'table_signature': [],
                 'picture_signature': [],
@@ -48,20 +60,26 @@ class DocumentAnalyzer:
                 'header': [],
                 'footer': [],
                 'footnote': [],
-                'formula': []
+                'formula': [],
+                'multicolumn_text': []
             }
 
-            # Extract text blocks and their coordinates
+            # Все содержимое документа разбивается на блоки
             blocks = page.get_text("dict")["blocks"]
+
             for block in blocks:
                 bbox = tuple(block['bbox'])
                 text = self.extract_text_from_block(block)
-                if not text:
-                    print('WARNING: text is empty.')
+                block_type = block['type']
+                # Если текст пустой (например пропуск строки) и это не картинка
+                if not text and block_type != 1:
+                    print('NOTICE: text is empty')
                     continue
-                # Detect element type based on formatting and content
+                # Todo: add TABLE checking and MULTICOLUMN, change TITLE logic
                 if self._is_title(block):
                     page_dict['title'].append(self._convert_coordinates(bbox))
+                if block_type == 1:  # is formula
+                    page_dict['picture'].append(self._convert_coordinates(bbox))
                 elif self._is_table_signature(text):
                     page_dict['table_signature'].append(self._convert_coordinates(bbox))
                 elif self._is_picture_signature(text):
@@ -72,20 +90,14 @@ class DocumentAnalyzer:
                     page_dict['marked_list'].append(self._convert_coordinates(bbox))
                 elif self._is_footer(bbox, page.rect.height):
                     page_dict['footer'].append(self._convert_coordinates(bbox))
-                elif self._is_header(bbox, page.rect.height):
+                elif self._is_header(bbox):
                     page_dict['header'].append(self._convert_coordinates(bbox))
-                elif self._is_formula(text):
+                elif self._is_formula(block):
                     page_dict['formula'].append(self._convert_coordinates(bbox))
+                elif self._is_footnote(block, page.rect.height):
+                    page_dict['footnote'].append(self._convert_coordinates(bbox))
                 else:
                     page_dict['paragraph'].append(self._convert_coordinates(bbox))
-
-            # Extract images
-            images = page.get_images(full=True)
-            for img in images:
-                xref = img[0]
-                pix = page.get_pixmap(matrix=fitz.Matrix(1, 1))
-                if pix:
-                    page_dict['picture'].append(self._convert_coordinates(pix.irect))
 
             page_data.append(page_dict)
 
@@ -94,7 +106,7 @@ class DocumentAnalyzer:
 
 
     def _convert_coordinates(self, bbox):
-        """Convert coordinates to [x1, y1, x2, y2] format."""
+        """Конвертирует координаты в [x1, y1, x2, y2] формат."""
         return [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
 
 
@@ -111,21 +123,96 @@ class DocumentAnalyzer:
         return bool(re.match(r'^\d+\.\s', text))
 
     def _is_marked_list(self, text):
-        """Check if text is part of a bulleted list."""
         return bool(re.match(r'^(\s*[-•*]\s+)', text))
 
 
     def _is_footer(self, bbox, page_height):
         return bbox[1] > page_height - 50
 
-    def _is_header(self, bbox, page_height):
+    def _is_header(self, bbox):
         return bbox[1] < 50
 
-    def _is_formula(self, text):
-        return '=' in text and any(c.isdigit() for c in text)
+    import re
+
+    def _is_formula(self, block):
+        """
+        Проверяет, является ли текст математической формулой.
+        Проверка шрифта (например, Cambria Math), а также
+        поиск математических символов, греческих букв, чисел и операторов.
+        """
+        text = self.extract_text_from_block(block)
+        fonts = []
+        for line in block['lines']:
+            for span in line['spans']:
+                font_name = span['font']
+                fonts.append(font_name)
+        # 1. Проверка на использование математического шрифта
+        if fonts and 'CambriaMath' in fonts:
+            return True
+
+        # 2. Проверка на наличие чисел и математических операторов
+        math_operators = r'[+\-*/=()]'
+        if re.search(math_operators, text) and any(c.isdigit() for c in text):
+            return True
+
+        # 3. Дополнительная проверка на наличие математических символов и греческих букв
+        math_symbols = r'[∪∩≈≠∞∑∏√∂∇⊕⊗≡⊂∈∉∫]'  # Символы объединений, пересечений, суммы и другие
+        greek_letters = r'[αβγδεζηθικλμνξοπρστυφχψω]'  # Греческие буквы
+        if re.search(math_symbols, text) or re.search(greek_letters, text):
+            return True
+
+        # 4. Дополнительная проверка для выражений с дробями, квадратными корнями и экспонентами
+        advanced_math_pattern = r'(\d+[\+\-\*/^()])+\d+|\d+\.\d+'  # Пример: 3.14+2, 2*(3+4), 3^2
+        if re.search(advanced_math_pattern, text):
+            return True
+
+        # 5. Если текст содержит логарифмы или интегралы
+        advanced_math_keywords = r'log|ln|∫|∑|∏|lim'
+        if re.search(advanced_math_keywords, text):
+            return True
+
+        return False
+
+    def _is_footnote(self, block, page_height):
+        """
+        Проверяет, является ли текст сноской.
+        Сноски часто содержат номера, могут быть внизу страницы и иметь меньший размер шрифта.
+        Также проверяется стиль текста, например, курсив и подчеркивание.
+        """
+
+        text = self.extract_text_from_block(block)
+        bbox = tuple(block['bbox'])
+        fonts = []
+        for line in block['lines']:
+            for span in line['spans']:
+                font_name = span['font']
+                fonts.append(font_name)
+
+        # Проверка на присутствие номеров сносок (например, [1], 1), [1.], 1], маленькие цифры и цифры в скобках
+        footnote_pattern = r'^\[\^?\d+\]|\d+\)|\d+\.$|\[\d+\]|\d+[\)\.\]]'  # Шаблон для номеров сносок
+        if re.search(footnote_pattern, text.strip()):
+            return True
+
+        # Проверка на наличие верхних индексов (например, ¹, ², ³, ...)
+        superscript_pattern = r'[¹²³⁴⁵⁶⁷⁸⁹]'  # Символы для верхних индексов
+        if re.search(superscript_pattern, text):
+            return True
+
+        # Проверка на позицию (сноски обычно находятся внизу страницы)
+        if bbox and bbox[1] > 0.9 * page_height:  # Нижняя часть страницы
+            return True
+
+        # Проверка на стиль текста (курсив, подчеркивание, структура вида [слова]* - [слова])
+        italic_pattern = r'\b[а-яА-Яa-zA-Z]*[а-яА-Яa-zA-Z]*\b[\s-]*[а-яА-Яa-zA-Z]*'
+        if re.search(italic_pattern, text) and (
+                'italic' in fonts or 'underline' in fonts):
+            return True
+
+        return False
+
 
     def generate_annotated_images(self, pdf_dir, output_dir):
-        """Generate annotated images with bounding boxes for each PDF in pdf_dir."""
+        """Генерирует аннотации, т.е. координаты элементов"""
         os.makedirs(output_dir, exist_ok=True)
 
         for pdf_file in os.listdir(pdf_dir):
@@ -142,32 +229,24 @@ class DocumentAnalyzer:
                 img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
                 draw = ImageDraw.Draw(img)
 
-                # Draw bounding boxes for each element type
+                # Рисует прямоугольники для просмотра результата
                 for element_type, coordinates_list in page_info.items():
                     if element_type not in ['image_height', 'image_width', 'image_path']:
                         color = self.colors.get(element_type, (0, 0, 0))
                         for coords in coordinates_list:
                             draw.rectangle(coords, outline=color, width=2)
 
-                # Save annotated image
+                # Сохраняет картинки
                 output_path = os.path.join(output_dir,
                                            f'{os.path.splitext(pdf_file)[0]}_annotated_page_{page_num + 1}.png')
                 img.save(output_path)
 
-                # Save JSON data
+                # Сохраняет JSON
                 json_path = os.path.join(output_dir, f'{os.path.splitext(pdf_file)[0]}_page_{page_num + 1}.json')
                 with open(json_path, 'w', encoding='utf-8') as f:
                     json.dump(page_info, f, indent=2)
 
             doc.close()
-
-
-# Папки с данными
-PDF_DIR = 'data/pdf/'
-ANNOTATIONS_DIR = 'data/annotations/'
-
-# Создание директории для аннотаций, если она не существует
-os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
 
 
 def main():
