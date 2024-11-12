@@ -80,10 +80,9 @@ def add_header_footer(document, base_font_size):
 
 class RandomHeadingFormat:
     def __init__(self, random_paragraph_format):
-        sz1 = random.choice([6, 7, 8, 9, 10])
-        self.font_size_1 = random_paragraph_format.font_size + sz1
-        self.font_size_2 = random_paragraph_format.font_size + (sz1 - 2)
-        self.font_size_3 = random_paragraph_format.font_size + (sz1 - 4)
+        self.font_size_1 = random_paragraph_format.font_size + random.choice([2, 4, 6, 8])
+        self.font_size_2 = random_paragraph_format.font_size + random.choice([2, 4, 6])
+        self.font_size_3 = random_paragraph_format.font_size + random.choice([2, 4])
         self.bold = random.random() < 0.7
         self.italic = random.random() < 0.3
         self.alignment = random.choices([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT], weights=[30, 70, 30])[0]
