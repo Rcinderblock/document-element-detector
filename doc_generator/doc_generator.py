@@ -127,7 +127,7 @@ class RandomParagraphFormat:
         self.space_after = random.randint(0, 10)
         self.first_line_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
         self.alignment = random.choice([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.JUSTIFY])
-        self.font_size = random.randint(8, 14)
+        self.font_size = random.randint(10, 16)
         self.font_name = random.choice(['Times New Roman', 'Arial', 'Calibri', 'Georgia', 'Verdana', 'Tahoma', 'Garamond', 'Helvetica', 'Courier New', 'Trebuchet MS', 'Comic Sans'])
 
 
@@ -207,7 +207,8 @@ def add_table_with_caption(document, random_table_format):
         run.alignment = random_table_format.alignment
 
     # Выбор стиля таблицы
-    table.style = random_table_format.table_style
+    #ВРЕМЕННО ПОМЕНЯЛ, ПОСКОЛЬКУ НЕ РЕШЕНА ПРОБЛЕМА С ДЕТЕКТОМ
+    table.style = 'Table Grid'  # random_table_format.table_style
 
     for row in table.rows:
         for cell in row.cells:
@@ -334,7 +335,7 @@ def add_numbered_list(document):
     num_items = random.randint(3, 7)
     for _ in range(num_items):
         list_item = fake.sentence(nb_words=random.randint(3, 10)) if random.choice([True, False]) else \
-            text_mimesis.text(quantity=1).split('.')[0]
+            text_mimesis.text(quantity=1).split('.')[0][:10]
         paragraph = document.add_paragraph(list_item, style=list_type)
         paragraph.paragraph_format.left_indent = Inches(0.85)
         paragraph.paragraph_format.space_before = Pt(0)
@@ -590,7 +591,7 @@ def generate_document(path):
         add_paragraph(document, random_paragraph_format)
 
         if footnotes_type == 2:
-            for _ in range(random.randint(0, 5)):
+            for _ in range(random.randint(0, 3)):
                 add_paragraph_with_footnote(document, footnotes, random_paragraph_format)
 
         # Добавление списков

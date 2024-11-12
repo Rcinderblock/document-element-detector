@@ -1,9 +1,10 @@
 import os
 import re
 import json
+from collections import Counter
+
 import fitz  # PyMuPDF
 from PIL import Image, ImageDraw
-
 
 # Папки с данными
 PDF_DIR = 'data/pdf/'
@@ -18,10 +19,9 @@ class DocumentAnalyzer:
     def extract_text_from_block(self, block):
         text = ""
         for line in block.get('lines', []):
-            for span in line.get('spans', []):
-                text += span.get('text', '') + " "
+            for span in line['spans']:
+                text += span['text'] + " "
         return text.strip()
-
 
     def __init__(self):
         self.colors = {
@@ -37,13 +37,17 @@ class DocumentAnalyzer:
             'footnote': (0, 128, 0),  # Dark Green
             'formula': (228, 228, 100)  # Yellow
         }
+        self.base_font_size = None
 
     def extract_coordinates(self, pdf_path):
         """Извлекает координаты всех элементов, классифицируя их"""
         doc = fitz.open(pdf_path)
         page_data = []
+        tables = self.tables_find(pdf_path)
+        paragraph_lines_count = 0
 
         for page_num in range(len(doc)):
+            paragraphs_font_sizes = []
             page = doc[page_num]
             page_dict = {
                 'image_height': int(page.rect.height),
@@ -64,6 +68,36 @@ class DocumentAnalyzer:
                 'multicolumn_text': []
             }
 
+            table_areas = tables.get(page_num, [])
+            if page_num in tables:
+                for bbox in tables[page_num]:
+                    page_dict['table'].append(self._convert_coordinates(bbox))
+
+            # Сначала извлекаем текст ПЕРВОЙ страницы для вычисления базового размера шрифта
+            if page_num == 0:
+                paragraphs = []
+                page = doc[0]
+                blocks = page.get_text("dict")["blocks"]
+
+                for block in blocks:
+                    block_bbox = block["bbox"]
+
+                    # Проверяем, находится ли блок в одной из областей таблицы
+                    is_in_table_area = any(
+                        self._is_within_table(block_bbox, table_area) for table_area in table_areas
+                    )
+
+                    # Если блок не в таблице, добавляем его текст для анализа
+                    if not is_in_table_area:
+                        text = self.extract_text_from_block(block)
+                        if text:
+                            paragraphs.append(block)
+
+                # Теперь вычисляем базовый размер шрифта на основе этих параграфов
+                if self.base_font_size is None:
+                    self.base_font_size = self.get_base_font_size(paragraphs)
+
+
             # Все содержимое документа разбивается на блоки
             blocks = page.get_text("dict")["blocks"]
 
@@ -71,53 +105,123 @@ class DocumentAnalyzer:
                 bbox = tuple(block['bbox'])
                 text = self.extract_text_from_block(block)
                 block_type = block['type']
+
+                if any(self._is_within_table(bbox, table) for table in table_areas):
+                    print('NOTICE: block in table')
+                    continue
+
                 # Если текст пустой (например пропуск строки) и это не картинка
                 if not text and block_type != 1:
                     print('NOTICE: text is empty')
                     continue
-                # Todo: add TABLE checking and MULTICOLUMN, change TITLE logic
-                if self._is_title(block):
-                    page_dict['title'].append(self._convert_coordinates(bbox))
-                if block_type == 1:  # is formula
+
+                # Todo: add MULTICOLUMN
+                if block_type == 1:  # is_picture
                     page_dict['picture'].append(self._convert_coordinates(bbox))
                 elif self._is_table_signature(text):
                     page_dict['table_signature'].append(self._convert_coordinates(bbox))
                 elif self._is_picture_signature(text):
                     page_dict['picture_signature'].append(self._convert_coordinates(bbox))
+                elif self._is_header(bbox):
+                    page_dict['header'].append(self._convert_coordinates(bbox))
                 elif self._is_numbered_list(text):
                     page_dict['numbered_list'].append(self._convert_coordinates(bbox))
                 elif self._is_marked_list(text):
                     page_dict['marked_list'].append(self._convert_coordinates(bbox))
                 elif self._is_footer(bbox, page.rect.height):
                     page_dict['footer'].append(self._convert_coordinates(bbox))
-                elif self._is_header(bbox):
-                    page_dict['header'].append(self._convert_coordinates(bbox))
                 elif self._is_formula(block):
                     page_dict['formula'].append(self._convert_coordinates(bbox))
                 elif self._is_footnote(block, page.rect.height):
                     page_dict['footnote'].append(self._convert_coordinates(bbox))
+                elif self._is_title(block):
+                    page_dict['title'].append(self._convert_coordinates(bbox))
                 else:
                     page_dict['paragraph'].append(self._convert_coordinates(bbox))
+                    # Складываем шрифты параграфов
+                    for line in block['lines']:
+                        for span in line['spans']:
+                            paragraphs_font_sizes.append(round(span.get('size')))
+                        paragraph_lines_count += 1
+                    # Обновляем базовый размер шрифта, если собрали уже достаточно и если обновление было не так давно
+                    if paragraph_lines_count > 50 and len(paragraphs_font_sizes) > 5:
+                        self.base_font_size = self.update_base_font_size(paragraphs_font_sizes)
+                        paragraph_lines_count = 0
+                        print(self.base_font_size)
 
             page_data.append(page_dict)
 
         doc.close()
         return page_data
 
-
     def _convert_coordinates(self, bbox):
         """Конвертирует координаты в [x1, y1, x2, y2] формат."""
         return [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
 
-
     def _is_title(self, block):
-        return block.get('lines', [{}])[0].get('spans', [{}])[0].get('size', 0) > 12
+        """Определяет, является ли блок заголовком на основе его шрифта."""
+        title_font_size = self.base_font_size + 2
+
+        font_sizes = []
+
+        # Собираем все размеры шрифта
+        for line in block['lines']:
+            for span in line['spans']:
+                font_size = span.get('size')
+                if font_size:  # Если размер шрифта найден
+                    font_size = round(font_size)
+                    font_sizes.append(font_size)
+
+        # Если нет шрифтов, возвращаем False
+        if not font_sizes:
+            return False
+
+        # Находим самый популярный размер шрифта
+        font_size_counter = Counter(font_sizes)
+        most_common_font_size, most_common_count = font_size_counter.most_common(1)[0]
+
+        # Проверяем, является ли этот размер шрифта заголовком
+        # размер шрифта = 26 здесь как флаг заголовка 0 уровня. Иначе какие-то баги с ним
+        if most_common_font_size >= title_font_size or 26 in font_size_counter:
+            return True
+        return False
+
+    def get_base_font_size(self, paragraphs):
+        """Вычисляет наиболее часто встречающийся размер шрифта для первых параграфов."""
+        font_sizes = []
+        for block in paragraphs:
+            for line in block.get('lines', []):
+                for span in line.get('spans', []):
+                    font_sizes.append(round(span.get('size')))
+
+        # Используем Counter для подсчета частоты встречающихся размеров шрифта
+        font_size_counts = Counter(font_sizes)
+
+        # Находим наиболее часто встречающийся размер шрифта
+        if font_size_counts:
+            most_common_size = font_size_counts.most_common(1)[0][0]
+            print('ПОПУЛЯРНЕЙШИЙ ШРИФТ СНАЧАЛА:', font_size_counts.items())
+            return most_common_size
+
+        return 12
+
+    def update_base_font_size(self, paragraphs_font_sizes):
+        """Обновляет размер шрифта, если уже классифицированы параграфы"""
+        font_size_counts = Counter(paragraphs_font_sizes)
+
+        # Находим наиболее часто встречающийся размер шрифта
+        if font_size_counts:
+            most_common_size = font_size_counts.most_common(1)[0][0]
+            print('ПОПУЛЯРНЕЙШИЙ ШРИФТ ПАРАГРАФОВ:', font_size_counts.items())
+            return most_common_size
+
+        return None
 
     def _is_table_signature(self, text):
-        return bool(re.match(r'(Табл\.|Таблица|Table)\s*\d+', text, re.IGNORECASE))
+        return bool(re.match(r'(Табл\.|Таблица|Table|Таблица\.|Табл)\s*\d*', text, re.IGNORECASE))
 
     def _is_picture_signature(self, text):
-        return bool(re.match(r'(Рис\.|Рисунок|Figure)\s*\d+', text,  re.IGNORECASE))
+        return bool(re.match(r'(Рис\.|Рисунок|Figure|Рис|Рисунок\.)\s*\d*', text, re.IGNORECASE))
 
     def _is_numbered_list(self, text):
         return bool(re.match(r'^\d+\.\s', text))
@@ -125,14 +229,11 @@ class DocumentAnalyzer:
     def _is_marked_list(self, text):
         return bool(re.match(r'^(\s*[-•*]\s+)', text))
 
-
     def _is_footer(self, bbox, page_height):
         return bbox[1] > page_height - 50
 
     def _is_header(self, bbox):
         return bbox[1] < 50
-
-    import re
 
     def _is_formula(self, block):
         """
@@ -210,6 +311,25 @@ class DocumentAnalyzer:
 
         return False
 
+    def tables_find(self, file_path):
+        """Находит таблицы в документе и возвращает их координаты по страницам."""
+        tables = {}
+        doc = fitz.open(file_path)
+
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            tabs = page.find_tables()  # Находим таблицы на текущей странице
+            coordinates = [tab.bbox for tab in tabs]  # Получаем координаты таблиц
+            if coordinates:
+                tables[page_num] = coordinates
+        doc.close()
+        return tables
+
+    def _is_within_table(self, bbox, table_bbox):
+        """Проверяет, находится ли блок в пределах координат таблицы."""
+        bx0, by0, bx1, by1 = bbox
+        tx0, ty0, tx1, ty1 = table_bbox
+        return bx0 >= tx0 and bx1 <= tx1 and by0 >= ty0 and by1 <= ty1
 
     def generate_annotated_images(self, pdf_dir, output_dir):
         """Генерирует аннотации, т.е. координаты элементов"""
