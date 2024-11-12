@@ -161,13 +161,15 @@ class DocumentAnalyzer:
     def _is_title(self, block):
         """Определяет, является ли блок заголовком на основе его шрифта."""
         title_font_size = self.base_font_size + 2
-
+        is_bold = False
         font_sizes = []
 
         # Собираем все размеры шрифта
         for line in block['lines']:
             for span in line['spans']:
                 font_size = span.get('size')
+                if not is_bold:
+                    is_bold = 'bold' in span['font'].lower()
                 if font_size:  # Если размер шрифта найден
                     font_size = round(font_size)
                     font_sizes.append(font_size)
@@ -182,7 +184,7 @@ class DocumentAnalyzer:
 
         # Проверяем, является ли этот размер шрифта заголовком
         # размер шрифта = 26 здесь как флаг заголовка 0 уровня. Иначе какие-то баги с ним
-        if most_common_font_size >= title_font_size or 26 in font_size_counter:
+        if is_bold and (most_common_font_size >= title_font_size or 26 in font_size_counter):
             return True
         return False
 
