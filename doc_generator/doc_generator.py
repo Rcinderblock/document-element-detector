@@ -22,7 +22,7 @@ from mimesis.random import Random
 # Faker будем использовать и для английского и для русского, т.к. в примере документа оба языка
 fake = Faker(['en_US', 'ru_RU'])
 text_mimesis = Text('ru')
-NUM_ITERATIONS = 100  # Количество итераций для генерации содержимого
+NUM_ITERATIONS = 5  # Количество итераций для генерации содержимого
 
 COLORS = """000000 000080 00008B 0000CD 0000FF 006400 008000 008080 008B8B 00BFFF 00CED1 
 00FA9A 00FF00 00FF7F 00FFFF 191970 1E90FF 20B2AA 228B22 2E8B57 2F4F4F 32CD32 
@@ -546,7 +546,7 @@ def generate_document(path):
     random_heading_format = RandomHeadingFormat(random_paragraph_format)
     
     num_of_pictures = 1
-    latex_data = pd.read_csv(r'latex_for_formulas.csv', index_col=False)['formula']
+    latex_data = pd.read_csv(r'doc_generator/latex_for_formulas.csv', index_col=False)['formula']
 
     element_funcs = []
     element_funcs += [lambda: add_heading(document, random_heading_format)] * random.randint(1, 3)
@@ -558,7 +558,6 @@ def generate_document(path):
     element_funcs += [lambda: add_footnotes_section(document)] * random.randint(1, 2)
 
     for i in range(NUM_ITERATIONS):
-
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
         if i != 0:
