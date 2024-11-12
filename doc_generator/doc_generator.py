@@ -206,9 +206,8 @@ def add_table_with_caption(document, random_table_format):
         run.font.color.rgb = RGBColor(0, 0, 0)
         run.alignment = random_table_format.alignment
 
-    # Выбор стиля таблицы
-    #ВРЕМЕННО ПОМЕНЯЛ, ПОСКОЛЬКУ НЕ РЕШЕНА ПРОБЛЕМА С ДЕТЕКТОМ
-    table.style = 'Table Grid'  # random_table_format.table_style
+    # Сетка для детекции
+    table.style = 'Table Grid'
 
     for row in table.rows:
         for cell in row.cells:
@@ -390,64 +389,7 @@ def add_footnote(document, base_font_size):
     footnote_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
 
-def set_multicolumn(section, num_columns=2):
-    """Установить режим многоколонного текста"""
-    sectPr = section._sectPr
-    # Создаем элемент для колонок
-    cols = OxmlElement('w:cols')
-    cols.set(qn('w:num'), str(num_columns))
-    cols.set(qn('w:space'), '720')
-    cols.set(qn('w:equalWidth'), '1')
-
-    # Удаляем существующие колонки, если есть
-    # Делал, когда исправлял, не знаю, нужно ли сейчас
-    existing_cols = sectPr.find(qn('w:cols'))
-    if existing_cols is not None:
-        sectPr.remove(existing_cols)
-    sectPr.append(cols)
-
-
-def reset_multicolumn(section):
-    """ Сбросить с многоколонного режима до обычного """
-    sectPr = section._sectPr
-    # Удаляем элемент колонок, если существует
-    existing_cols = sectPr.find(qn('w:cols'))
-    if existing_cols is not None:
-        sectPr.remove(existing_cols)
-    # Добавляем обратно одну колонку по умолчанию
-    cols = OxmlElement('w:cols')
-    cols.set(qn('w:num'), '1')
-    cols.set(qn('w:space'), '720')
-    sectPr.append(cols)
-
-
-def add_multi_column_text(document, base_font_size):
-    """ Вызвать функцию == добавить многоколонный (2-3 колонны) текст"""
-    # Добавляем секцию с многоколонным текстом
-    multi_col_section = document.add_section(WD_SECTION.NEW_PAGE)
-    num_columns = random.randint(2, 3)  # Случайное количество колонок от 2 до 3
-    set_multicolumn(multi_col_section, num_columns=num_columns)
-
-    # Рассчитывалось как вставка определенного количества текста в каждую колонну,
-    # но оказалось, что текст вставляется просто в одну колонну, а потом избыток переносится.
-    # TODO: Может быть оптимизировано.
-    for _ in range(num_columns):
-        column_text = fake.text(
-            max_nb_chars=10000)  # Генерируем намного больше чем 1000 текст, чтобы после обрезать до 1000
-        if num_columns == 2:
-            column_text = column_text[:1000]  # Такая практика нужна была, чтобы во всех колонах было по 1000 символов.
-        else:
-            column_text = column_text[:633]  # Но оказалось, что это не работает, как должно.
-        # Добавляем новый параграф в документ для текущей колонки
-        paragraph = document.add_paragraph(column_text)
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY  # Выравнивание по ширине
-
-        # Устанавливаем размер шрифта
-        for run in paragraph.runs:
-            run.font.size = Pt(base_font_size)
-
-
-def get_paragraph(doc, based_font_size):
+def add_multicolumn_text(doc, based_font_size):
     generic = Generic(locale=Locale.RU)
     random = Random()
 
@@ -554,7 +496,7 @@ def generate_document(path):
     element_funcs += [lambda: add_table_with_caption(document, random_table_format)] * random.randint(1, 2)
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
-    element_funcs += [lambda: get_paragraph(document, random_paragraph_format.font_size)] * random.randint(1, 3)
+    element_funcs += [lambda: add_multicolumn_text(document, random_paragraph_format.font_size)] * random.randint(1, 3)
     element_funcs += [lambda: add_footnotes_section(document)] * random.randint(1, 2)
 
     for i in range(NUM_ITERATIONS):
@@ -562,7 +504,6 @@ def generate_document(path):
         # А на первой добавляем колонтитулы -- раз и на все страницы.
         if i != 0:
             new_sect = document.add_section(WD_SECTION.NEW_PAGE)
-            reset_multicolumn(new_sect)  # TODO [check actuality]: проверить надобность этой строки
         else:
             add_header_footer(document, random_paragraph_format.font_size)
 
@@ -577,9 +518,18 @@ def generate_document(path):
         # Добавление абзаца
         add_paragraph(document, random_paragraph_format)
 
+        last_was_heading = False
+
         random.shuffle(element_funcs)
         for func in element_funcs:
+            if last_was_heading and 'add_multicolumn_text' in func.__code__.co_names:
+                print('WORKED')
+                print(func.__code__.co_names)
+                continue
+            if 'add_heading' in func.__code__.co_names:
+                last_was_heading = True
+            else:
+                last_was_heading = False
             func()
 
-    # Сохранение документа
     document.save(path)
