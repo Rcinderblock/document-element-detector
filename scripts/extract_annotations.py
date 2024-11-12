@@ -3,7 +3,8 @@ import re
 import json
 from collections import Counter
 
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF # не трогать, иначе у тимофея не зафурычит
+import pymupdf
 from PIL import Image, ImageDraw
 
 # Папки с данными
@@ -13,6 +14,236 @@ ANNOTATIONS_DIR = 'data/annotations/'
 # Создание директории для аннотаций, если она не существует
 os.makedirs(ANNOTATIONS_DIR, exist_ok=True)
 
+
+def column_boxes(page, footer_margin=50, header_margin=50, no_image_text=True):
+    """Determine bboxes which wrap a column."""
+    paths = page.get_drawings()
+    bboxes = []
+
+    # path rectangles
+    path_rects = []
+
+    # image bboxes
+    img_bboxes = []
+
+    # bboxes of non-horizontal text
+    # avoid when expanding horizontal text boxes
+    vert_bboxes = []
+
+    # compute relevant page area
+    clip = +page.rect
+    clip.y1 -= footer_margin  # Remove footer area
+    clip.y0 += header_margin  # Remove header area
+
+    def can_extend(temp, bb, bboxlist):
+        """Determines whether rectangle 'temp' can be extended by 'bb'
+        without intersecting any of the rectangles contained in 'bboxlist'.
+
+        Items of bboxlist may be None if they have been removed.
+
+        Returns:
+            True if 'temp' has no intersections with items of 'bboxlist'.
+        """
+        for b in bboxlist:
+            if not intersects_bboxes(temp, vert_bboxes) and (
+                    b == None or b == bb or (temp & b).is_empty
+            ):
+                continue
+            return False
+
+        return True
+
+    def in_bbox(bb, bboxes):
+        """Return 1-based number if a bbox contains bb, else return 0."""
+        for i, bbox in enumerate(bboxes):
+            if bb in bbox:
+                return i + 1
+        return 0
+
+    def intersects_bboxes(bb, bboxes):
+        """Return True if a bbox intersects bb, else return False."""
+        for bbox in bboxes:
+            if not (bb & bbox).is_empty:
+                return True
+        return False
+
+    def extend_right(bboxes, width, path_bboxes, vert_bboxes, img_bboxes):
+        """Extend a bbox to the right page border.
+
+        Whenever there is no text to the right of a bbox, enlarge it up
+        to the right page border.
+
+        Args:
+            bboxes: (list[IRect]) bboxes to check
+            width: (int) page width
+            path_bboxes: (list[IRect]) bboxes with a background color
+            vert_bboxes: (list[IRect]) bboxes with vertical text
+            img_bboxes: (list[IRect]) bboxes of images
+        Returns:
+            Potentially modified bboxes.
+        """
+        for i, bb in enumerate(bboxes):
+            # do not extend text with background color
+            if in_bbox(bb, path_bboxes):
+                continue
+
+            # do not extend text in images
+            if in_bbox(bb, img_bboxes):
+                continue
+
+            # temp extends bb to the right page border
+            temp = +bb
+            temp.x1 = width
+
+            # do not cut through colored background or images
+            if intersects_bboxes(temp, path_bboxes + vert_bboxes + img_bboxes):
+                continue
+
+            # also, do not intersect other text bboxes
+            check = can_extend(temp, bb, bboxes)
+            if check:
+                bboxes[i] = temp  # replace with enlarged bbox
+
+        return [b for b in bboxes if b != None]
+
+    def clean_nblocks(nblocks):
+        """Do some elementary cleaning."""
+
+        # 1. remove any duplicate blocks.
+        blen = len(nblocks)
+        if blen < 2:
+            return nblocks
+        start = blen - 1
+        for i in range(start, -1, -1):
+            bb1 = nblocks[i]
+            bb0 = nblocks[i - 1]
+            if bb0 == bb1:
+                del nblocks[i]
+
+        # 2. repair sequence in special cases:
+        # consecutive bboxes with almost same bottom value are sorted ascending
+        # by x-coordinate.
+        y1 = nblocks[0].y1  # first bottom coordinate
+        i0 = 0  # its index
+        i1 = -1  # index of last bbox with same bottom
+
+        # Iterate over bboxes, identifying segments with approx. same bottom value.
+        # Replace every segment by its sorted version.
+        for i in range(1, len(nblocks)):
+            b1 = nblocks[i]
+            if abs(b1.y1 - y1) > 10:  # different bottom
+                if i1 > i0:  # segment length > 1? Sort it!
+                    nblocks[i0: i1 + 1] = sorted(
+                        nblocks[i0: i1 + 1], key=lambda b: b.x0
+                    )
+                y1 = b1.y1  # store new bottom value
+                i0 = i  # store its start index
+            i1 = i  # store current index
+        if i1 > i0:  # segment waiting to be sorted
+            nblocks[i0: i1 + 1] = sorted(nblocks[i0: i1 + 1], key=lambda b: b.x0)
+        return nblocks
+
+    # extract vector graphics
+    for p in paths:
+        path_rects.append(p["rect"].irect)
+    path_bboxes = path_rects
+
+    # sort path bboxes by ascending top, then left coordinates
+    path_bboxes.sort(key=lambda b: (b.y0, b.x0))
+
+    # bboxes of images on page, no need to sort them
+    for item in page.get_images():
+        img_bboxes.extend(page.get_image_rects(item[0]))
+
+    # blocks of text on page
+    blocks = page.get_text(
+        "dict",
+        flags=pymupdf.TEXTFLAGS_TEXT,
+        clip=clip,
+    )["blocks"]
+
+    # Make block rectangles, ignoring non-horizontal text
+    for b in blocks:
+        bbox = pymupdf.IRect(b["bbox"])  # bbox of the block
+
+        # ignore text written upon images
+        if no_image_text and in_bbox(bbox, img_bboxes):
+            continue
+
+        # confirm first line to be horizontal
+        line0 = b["lines"][0]  # get first line
+        if line0["dir"] != (1, 0):  # only accept horizontal text
+            vert_bboxes.append(bbox)
+            continue
+
+        srect = pymupdf.EMPTY_IRECT()
+        for line in b["lines"]:
+            lbbox = pymupdf.IRect(line["bbox"])
+            text = "".join([s["text"].strip() for s in line["spans"]])
+            if len(text) > 1:
+                srect |= lbbox
+        bbox = +srect
+
+        if not bbox.is_empty:
+            bboxes.append(bbox)
+
+    # Sort text bboxes by ascending background, top, then left coordinates
+    bboxes.sort(key=lambda k: (in_bbox(k, path_bboxes), k.y0, k.x0))
+
+    # Extend bboxes to the right where possible
+    bboxes = extend_right(
+        bboxes, int(page.rect.width), path_bboxes, vert_bboxes, img_bboxes
+    )
+
+    # immediately return of no text found
+    if bboxes == []:
+        return []
+
+    # --------------------------------------------------------------------
+    # Join bboxes to establish some column structure
+    # --------------------------------------------------------------------
+    # the final block bboxes on page
+    nblocks = [bboxes[0]]  # pre-fill with first bbox
+    bboxes = bboxes[1:]  # remaining old bboxes
+
+    for i, bb in enumerate(bboxes):  # iterate old bboxes
+        check = False  # indicates unwanted joins
+
+        # check if bb can extend one of the new blocks
+        for j in range(len(nblocks)):
+            nbb = nblocks[j]  # a new block
+
+            # never join across columns
+            if bb == None or nbb.x1 < bb.x0 or bb.x1 < nbb.x0:
+                continue
+
+            # never join across different background colors
+            if in_bbox(nbb, path_bboxes) != in_bbox(bb, path_bboxes):
+                continue
+
+            temp = bb | nbb  # temporary extension of new block
+            check = can_extend(temp, nbb, nblocks)
+            if check == True:
+                break
+
+        if not check:  # bb cannot be used to extend any of the new bboxes
+            nblocks.append(bb)  # so add it to the list
+            j = len(nblocks) - 1  # index of it
+            temp = nblocks[j]  # new bbox added
+
+        # check if some remaining bbox is contained in temp
+        check = can_extend(temp, bb, bboxes)
+        if check == False:
+            nblocks.append(bb)
+        else:
+            nblocks[j] = temp
+        bboxes[i] = None
+
+    # do some elementary cleaning
+    nblocks = clean_nblocks(nblocks)
+
+    # return identified text bboxes
+    return nblocks
 
 class DocumentAnalyzer:
 
@@ -35,15 +266,17 @@ class DocumentAnalyzer:
             'header': (255, 255, 0),  # Yellow
             'footer': (128, 128, 128),  # Gray
             'footnote': (0, 128, 0),  # Dark Green
-            'formula': (228, 228, 100)  # Yellow
+            'formula': (228, 228, 100),  # Yellow
+            'multicolumn_text': (0, 0, 0) # Black
         }
         self.base_font_size = None
 
     def extract_coordinates(self, pdf_path):
         """Извлекает координаты всех элементов, классифицируя их"""
-        doc = fitz.open(pdf_path)
+        doc = pymupdf.open(pdf_path)
         page_data = []
         tables = self.tables_find(pdf_path)
+        multi_columns = self.check_multi_column_text(pdf_path)
         paragraph_lines_count = 0
 
         for page_num in range(len(doc)):
@@ -73,6 +306,11 @@ class DocumentAnalyzer:
                 for bbox in tables[page_num]:
                     page_dict['table'].append(self._convert_coordinates(bbox))
 
+            text_areas = multi_columns.get(page_num, [])
+            if page_num in multi_columns:
+                for bbox in multi_columns[page_num]:
+                    page_dict['multicolumn_text'].append(self._convert_coordinates(bbox))
+
             # Сначала извлекаем текст ПЕРВОЙ страницы для вычисления базового размера шрифта
             if page_num == 0:
                 paragraphs = []
@@ -96,7 +334,6 @@ class DocumentAnalyzer:
                 # Теперь вычисляем базовый размер шрифта на основе этих параграфов
                 if self.base_font_size is None:
                     self.base_font_size = self.get_base_font_size(paragraphs)
-
 
             # Все содержимое документа разбивается на блоки
             blocks = page.get_text("dict")["blocks"]
@@ -311,10 +548,36 @@ class DocumentAnalyzer:
 
         return False
 
+    def check_multi_column_text(self, file_path):
+        doc = pymupdf.open(file_path)
+        text = dict()
+        for page in range(len(doc)):
+            bboxes = column_boxes(doc[page], footer_margin=50, no_image_text=True)
+            p = []
+            for rect in range(len(bboxes) - 1):
+                if 85 < bboxes[rect][0] < 95 and 295 < bboxes[rect][2] < 315 and 305 < bboxes[rect + 1][
+                    0] < 315 and 510 < \
+                        bboxes[rect + 1][2] < 530 and abs(bboxes[rect + 1][1] - bboxes[rect][1]) < 5:
+                    p.append(bboxes[rect])
+                    p.append(bboxes[rect + 1])
+                if rect < len(bboxes) - 2:
+                    if 85 < bboxes[rect][0] < 95 and 210 < bboxes[rect][2] < 230 and \
+                            230 < bboxes[rect + 1][0] < 250 and 370 < bboxes[rect + 1][2] < 385 and \
+                            370 < bboxes[rect + 2][0] < 390 and 505 < bboxes[rect + 2][2] < 530 and \
+                            abs(max(bboxes[rect + 1][1] - bboxes[rect][1], bboxes[rect + 2][1] - bboxes[rect][1],
+                                    bboxes[rect + 1][1] - bboxes[rect + 2][1])) < 5:
+                        p.append(bboxes[rect])
+                        p.append(bboxes[rect + 1])
+                        p.append(bboxes[rect + 2])
+            if len(p) > 0:
+                text[page] = p
+        # return словарь - страница: точки прямоульника
+        return text
+
     def tables_find(self, file_path):
         """Находит таблицы в документе и возвращает их координаты по страницам."""
         tables = {}
-        doc = fitz.open(file_path)
+        doc = pymupdf.open(file_path)
 
         for page_num in range(len(doc)):
             page = doc[page_num]
@@ -340,7 +603,7 @@ class DocumentAnalyzer:
                 continue
 
             pdf_path = os.path.join(pdf_dir, pdf_file)
-            doc = fitz.open(pdf_path)
+            doc = pymupdf.open(pdf_path)
             page_data = self.extract_coordinates(pdf_path)
 
             for page_num, page_info in enumerate(page_data):
