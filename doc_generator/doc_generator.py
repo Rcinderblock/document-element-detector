@@ -105,7 +105,7 @@ def add_heading(document, random_heading_format):
         text_mimesis.text(quantity=1).split('.')[0]  # Рандомная генерация фейкером / мимезисом
     heading = document.add_heading(level=level)
     run = heading.add_run(heading_text)
-    run.bold = random_heading_format.bold
+    run.bold = True
     run.italic = random_heading_format.italic
     run.font.size = Pt(font_size)
     run.font.color.rgb = RGBColor(0, 0, 0)
