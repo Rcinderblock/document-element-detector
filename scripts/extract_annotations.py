@@ -122,8 +122,14 @@ class DocumentAnalyzer:
                     page_dict['marked_list'].append(self._convert_coordinates(bbox))
                 elif self._is_footer(bbox, page.rect.height):
                     page_dict['footer'].append(self._convert_coordinates(bbox))
-                elif self._is_formula(block):
-                    page_dict['formula'].append(self._convert_coordinates(bbox))
+                elif self._is_formula(block)[0]:
+                    coords = self._convert_coordinates(bbox)
+                    # Если в формуле есть знак суммы, интегралы или знак произведения
+                    # Тогда раздвинем границы вверх и вниз на 5, чтобы они вместились в бокс
+                    if self._is_formula(block)[1]:
+                        coords[1] -= 5
+                        coords[-1] += 5
+                    page_dict['formula'].append(coords)
                 elif self._is_footnote(block, page.rect.height):
                     page_dict['footnote'].append(self._convert_coordinates(bbox))
                 elif self._is_title(block):
@@ -139,10 +145,56 @@ class DocumentAnalyzer:
                     if paragraph_lines_count > 50 and len(paragraphs_font_sizes) > 5:
                         self.base_font_size = self.update_base_font_size(paragraphs_font_sizes)
 
+
+            # Слияние босков формул если они рядом или пересекаются
+            page_dict['formula'] = self.merge_formulas_rects(page_dict['formula'])
             page_data.append(page_dict)
 
         doc.close()
         return page_data
+
+    def merge_formulas_rects(self, rectangles, max_y_distance=50, max_x_distance=50):
+        def rectangles_intersect_or_nearby(rect1, rect2):
+            # Проверка стандартного пересечения
+            if not (rect1[2] < rect2[0] or rect2[2] < rect1[0] or rect1[3] < rect2[1] or rect2[3] < rect1[1]):
+                return True
+
+            # Проверка расстояния по оси Y
+            if abs(rect1[3] - rect2[1]) <= max_y_distance or abs(rect2[3] - rect1[1]) <= max_y_distance:
+                return True
+
+            # Проверка расстояния по оси X
+            if abs(rect1[2] - rect2[0]) <= max_x_distance or abs(rect2[2] - rect1[0]) <= max_x_distance:
+                return True
+
+            return False
+
+        def merge_rectangles(rect1, rect2):
+            # Объединение двух пересекающихся или близко расположенных прямоугольников
+            x1 = min(rect1[0], rect2[0])
+            y1 = min(rect1[1], rect2[1])
+            x2 = max(rect1[2], rect2[2])
+            y2 = max(rect1[3], rect2[3])
+            return [x1, y1, x2, y2]
+
+        merged_rects = []
+        while rectangles:
+            # Берем первый прямоугольник и ищем для него все пересекающиеся или близкие
+            base_rect = rectangles.pop(0)
+            merged = True
+            while merged:
+                merged = False
+                i = 0
+                while i < len(rectangles):
+                    if rectangles_intersect_or_nearby(base_rect, rectangles[i]):
+                        # Если пересечение или близость найдены, объединяем и убираем из списка
+                        base_rect = merge_rectangles(base_rect, rectangles.pop(i))
+                        merged = True  # Указываем, что произошло объединение
+                    else:
+                        i += 1
+            # Добавляем объединенный прямоугольник в результат
+            merged_rects.append(base_rect)
+        return merged_rects
 
     def _convert_coordinates(self, bbox):
         """Конвертирует координаты в [x1, y1, x2, y2] формат."""
@@ -242,36 +294,44 @@ class DocumentAnalyzer:
         """
         text = self.extract_text_from_block(block)
         fonts = []
+        up_borders_symbols = r'[∑∏∫]'
+
         for line in block['lines']:
             for span in line['spans']:
                 font_name = span['font']
                 fonts.append(font_name)
         # 1. Проверка на использование математического шрифта
         if fonts and 'CambriaMath' in fonts:
-            return True
+            if re.search(up_borders_symbols, text):
+                return True, True
+            return True, False
 
         # 2. Проверка на наличие чисел и математических операторов
         math_operators = r'[+\-*/=()]'
         if re.search(math_operators, text) and any(c.isdigit() for c in text):
-            return True
+            if re.search(up_borders_symbols, text):
+                return True, True
+            return True, False
 
         # 3. Дополнительная проверка на наличие математических символов и греческих букв
         math_symbols = r'[∪∩≈≠∞∑∏√∂∇⊕⊗≡⊂∈∉∫]'  # Символы объединений, пересечений, суммы и другие
-        greek_letters = r'[αβγδεζηθικλμνξοπρστυφχψω]'  # Греческие буквы
+        greek_letters = r'[αβγδεζηθικλμνξοπρστυφχψω]' # Греческие буквы
         if re.search(math_symbols, text) or re.search(greek_letters, text):
-            return True
+            if re.search(up_borders_symbols, text):
+                return True, True
+            return True, False
 
         # 4. Дополнительная проверка для выражений с дробями, квадратными корнями и экспонентами
         advanced_math_pattern = r'(\d+[\+\-\*/^()])+\d+|\d+\.\d+'  # Пример: 3.14+2, 2*(3+4), 3^2
         if re.search(advanced_math_pattern, text):
-            return True
+            return True, False
 
-        # 5. Если текст содержит логарифмы или интегралы
-        advanced_math_keywords = r'log|ln|∫|∑|∏|lim'
+        # 5. Если текст содержит логарифмы или пределы
+        advanced_math_keywords = r'log|ln|lim'
         if re.search(advanced_math_keywords, text):
-            return True
+            return True, False
 
-        return False
+        return False, False
 
     def _is_footnote(self, block, page_height):
         """
