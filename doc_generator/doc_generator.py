@@ -80,9 +80,10 @@ def add_header_footer(document, base_font_size):
 
 class RandomHeadingFormat:
     def __init__(self, random_paragraph_format):
-        self.font_size_1 = random_paragraph_format.font_size + random.choice([2, 4, 6, 8])
-        self.font_size_2 = random_paragraph_format.font_size + random.choice([2, 4, 6])
-        self.font_size_3 = random_paragraph_format.font_size + random.choice([2, 4])
+        sz1 = random.choice([6, 7, 8, 9, 10])
+        self.font_size_1 = random_paragraph_format.font_size + sz1
+        self.font_size_2 = random_paragraph_format.font_size + (sz1 - 2)
+        self.font_size_3 = random_paragraph_format.font_size + (sz1 - 4)
         self.bold = random.random() < 0.7
         self.italic = random.random() < 0.3
         self.alignment = random.choices([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT], weights=[30, 70, 30])[0]
@@ -127,7 +128,7 @@ class RandomParagraphFormat:
         self.space_after = random.randint(0, 10)
         self.first_line_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
         self.alignment = random.choice([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.JUSTIFY])
-        self.font_size = random.randint(8, 14)
+        self.font_size = random.randint(10, 16)
         self.font_name = random.choice(['Times New Roman', 'Arial', 'Calibri', 'Georgia', 'Verdana', 'Tahoma', 'Garamond', 'Helvetica', 'Courier New', 'Trebuchet MS', 'Comic Sans'])
 
 
@@ -207,7 +208,8 @@ def add_table_with_caption(document, random_table_format):
         run.alignment = random_table_format.alignment
 
     # Выбор стиля таблицы
-    table.style = random_table_format.table_style
+    #ВРЕМЕННО ПОМЕНЯЛ, ПОСКОЛЬКУ НЕ РЕШЕНА ПРОБЛЕМА С ДЕТЕКТОМ
+    table.style = 'Table Grid'  # random_table_format.table_style
 
     for row in table.rows:
         for cell in row.cells:
@@ -334,7 +336,7 @@ def add_numbered_list(document):
     num_items = random.randint(3, 7)
     for _ in range(num_items):
         list_item = fake.sentence(nb_words=random.randint(3, 10)) if random.choice([True, False]) else \
-            text_mimesis.text(quantity=1).split('.')[0]
+            text_mimesis.text(quantity=1).split('.')[0][:10]
         paragraph = document.add_paragraph(list_item, style=list_type)
         paragraph.paragraph_format.left_indent = Inches(0.85)
         paragraph.paragraph_format.space_before = Pt(0)
@@ -528,6 +530,7 @@ def get_image(doc, based_font_size, num_of_pictures):
         num_of_pictures += 1
 
 
+
 def generate_document(path):
     """
     Запуск генерации документа.
@@ -537,6 +540,12 @@ def generate_document(path):
     """
     document = Document()
     table_styles = [style.name for style in document.styles if style.type == WD_STYLE_TYPE.TABLE]
+
+    # Начальные характеристики документа
+    random_paragraph_format = RandomParagraphFormat()
+    random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
+    random_heading_format = RandomHeadingFormat(random_paragraph_format)
+    
     num_of_pictures = 1
     latex_data = pd.read_csv(r'latex_for_formulas.csv', index_col=False)['formula']
 
@@ -547,18 +556,9 @@ def generate_document(path):
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
     element_funcs += [lambda: get_paragraph(document, random_paragraph_format.font_size)] * random.randint(1, 3)
-
+    element_funcs += [lambda: add_footnotes_section(document)] * random.randint(1, 2)
 
     for i in range(NUM_ITERATIONS):
-
-        # Начальные характеристики документа
-        random_paragraph_format = RandomParagraphFormat()
-        random_table_format = RandomTableFormat(random_paragraph_format, table_styles)
-        random_heading_format = RandomHeadingFormat(random_paragraph_format)
-        footnotes_type = random.choice([0, 1, 2])
-
-        if footnotes_type == 2:
-            element_funcs += [lambda: add_footnote(document, random_paragraph_format.font_size)]
 
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
@@ -582,9 +582,6 @@ def generate_document(path):
         random.shuffle(element_funcs)
         for func in element_funcs:
             func()
-
-        if footnotes_type == 1:
-            add_footnotes_section(document)
 
     # Сохранение документа
     document.save(path)
