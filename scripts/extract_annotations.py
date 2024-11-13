@@ -153,7 +153,7 @@ class DocumentAnalyzer:
         doc.close()
         return page_data
 
-    def merge_formulas_rects(self, rectangles, max_y_distance=50, max_x_distance=50):
+    def merge_formulas_rects(self, rectangles, max_y_distance=10, max_x_distance=20):
         def rectangles_intersect_or_nearby(rect1, rect2):
             # Проверка стандартного пересечения
             if not (rect1[2] < rect2[0] or rect2[2] < rect1[0] or rect1[3] < rect2[1] or rect2[3] < rect1[1]):
@@ -286,11 +286,16 @@ class DocumentAnalyzer:
     def _is_header(self, bbox):
         return bbox[1] < 50
 
-    def _is_formula(self, block):
+    def _is_formula(self, block) -> tuple[bool, bool]:
         """
         Проверяет, является ли текст математической формулой.
         Проверка шрифта (например, Cambria Math), а также
         поиск математических символов, греческих букв, чисел и операторов.
+
+        Returns:
+            Первое bool значение -- является ли блок формулой
+            Второе bool значение -- нужно ли поднимать границы
+
         """
         text = self.extract_text_from_block(block)
         fonts = []
@@ -319,11 +324,6 @@ class DocumentAnalyzer:
         if re.search(math_symbols, text) or re.search(greek_letters, text):
             if re.search(up_borders_symbols, text):
                 return True, True
-            return True, False
-
-        # 4. Дополнительная проверка для выражений с дробями, квадратными корнями и экспонентами
-        advanced_math_pattern = r'(\d+[\+\-\*/^()])+\d+|\d+\.\d+'  # Пример: 3.14+2, 2*(3+4), 3^2
-        if re.search(advanced_math_pattern, text):
             return True, False
 
         # 5. Если текст содержит логарифмы или пределы

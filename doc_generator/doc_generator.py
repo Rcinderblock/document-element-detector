@@ -523,8 +523,6 @@ def generate_document(path):
         random.shuffle(element_funcs)
         for func in element_funcs:
             if last_was_heading and 'add_multicolumn_text' in func.__code__.co_names:
-                print('WORKED')
-                print(func.__code__.co_names)
                 continue
             if 'add_heading' in func.__code__.co_names:
                 last_was_heading = True
