@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw
 PDF_DIR = 'data/pdf/'
 ANNOTATIONS_DIR = 'data/annotations/'
 
+
 class DocumentAnalyzer:
 
     def extract_text_from_block(self, block):
@@ -145,15 +146,20 @@ class DocumentAnalyzer:
                     if paragraph_lines_count > 50 and len(paragraphs_font_sizes) > 5:
                         self.base_font_size = self.update_base_font_size(paragraphs_font_sizes)
 
+            # Слияние боксов формул если они рядом или пересекаются
+            page_dict['formula'] = self.merge_rects(page_dict['formula'], max_y_distance=5, max_x_distance=5)
 
-            # Слияние босков формул если они рядом или пересекаются
-            page_dict['formula'] = self.merge_formulas_rects(page_dict['formula'])
+            # Слияние боксов текстов (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
+            page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=3, max_x_distance=0)
+
+            # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
+            page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
             page_data.append(page_dict)
 
         doc.close()
         return page_data
 
-    def merge_formulas_rects(self, rectangles, max_y_distance=10, max_x_distance=20):
+    def merge_rects(self, rectangles, max_y_distance=10, max_x_distance=20):
         def rectangles_intersect_or_nearby(rect1, rect2):
             # Проверка стандартного пересечения
             if not (rect1[2] < rect2[0] or rect2[2] < rect1[0] or rect1[3] < rect2[1] or rect2[3] < rect1[1]):
@@ -265,7 +271,6 @@ class DocumentAnalyzer:
                 return True
         return False
 
-
     def _is_picture_signature(self, text):
         pattern = r'(Рис\.|Рисунок|Figure|Рис|Рисунок\.)\s*\d*'
         if text[0].isupper() and bool(re.match(pattern, text, re.IGNORECASE)):
@@ -312,7 +317,7 @@ class DocumentAnalyzer:
             return True, False
 
         # 2. Проверка на наличие чисел и математических операторов
-        math_operators = r'[+\-*/=()]'
+        math_operators = r'[+\*/=()]'
         if re.search(math_operators, text) and any(c.isdigit() for c in text):
             if re.search(up_borders_symbols, text):
                 return True, True
@@ -320,7 +325,7 @@ class DocumentAnalyzer:
 
         # 3. Дополнительная проверка на наличие математических символов и греческих букв
         math_symbols = r'[∪∩≈≠∞∑∏√∂∇⊕⊗≡⊂∈∉∫]'  # Символы объединений, пересечений, суммы и другие
-        greek_letters = r'[αβγδεζηθικλμνξοπρστυφχψω]' # Греческие буквы
+        greek_letters = r'[αβγδεζηθικλμνξοπρστυφχψω]'  # Греческие буквы
         if re.search(math_symbols, text) or re.search(greek_letters, text):
             if re.search(up_borders_symbols, text):
                 return True, True

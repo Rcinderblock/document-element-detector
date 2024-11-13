@@ -101,8 +101,7 @@ def add_heading(document, random_heading_format):
     else:
         font_size = random_heading_format.font_size_3
 
-    heading_text = fake.sentence(nb_words=random.randint(3, 7)) if random.choice([True, False]) else \
-        text_mimesis.text(quantity=1).split('.')[0]  # Рандомная генерация фейкером / мимезисом
+    heading_text = fake.sentence(nb_words=random.randint(3, 7)) # Рандомная генерация фейкером / мимезисом
     heading = document.add_heading(level=level)
     run = heading.add_run(heading_text)
     run.bold = True
@@ -482,11 +481,12 @@ def generate_document(path):
         element_funcs += [lambda: add_footnotes_section(document)] * random.randint(0, 2)
     elif random.random() < 0.40:
         element_funcs += [lambda: get_footnote(document, random_paragraph_format.font_size)]
+
     for i in range(NUM_ITERATIONS):
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
         if i != 0:
-            new_sect = document.add_section(WD_SECTION.NEW_PAGE)
+            document.add_section(WD_SECTION.NEW_PAGE)
         else:
             add_header_footer(document, random_paragraph_format.font_size)
 
