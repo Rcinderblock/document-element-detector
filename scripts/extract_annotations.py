@@ -326,11 +326,6 @@ class DocumentAnalyzer:
                 return True, True
             return True, False
 
-        # 5. Если текст содержит логарифмы или пределы
-        advanced_math_keywords = r'log|ln|lim'
-        if re.search(advanced_math_keywords, text):
-            return True, False
-
         return False, False
 
     def _is_footnote(self, block, page_height):
