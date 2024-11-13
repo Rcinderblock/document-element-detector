@@ -101,8 +101,7 @@ def add_heading(document, random_heading_format):
     else:
         font_size = random_heading_format.font_size_3
 
-    heading_text = fake.sentence(nb_words=random.randint(3, 7)) if random.choice([True, False]) else \
-        text_mimesis.text(quantity=1).split('.')[0]  # Рандомная генерация фейкером / мимезисом
+    heading_text = fake.sentence(nb_words=random.randint(3, 7)) # Рандомная генерация фейкером / мимезисом
     heading = document.add_heading(level=level)
     run = heading.add_run(heading_text)
     run.bold = True
@@ -206,9 +205,8 @@ def add_table_with_caption(document, random_table_format):
         run.font.color.rgb = RGBColor(0, 0, 0)
         run.alignment = random_table_format.alignment
 
-    # Выбор стиля таблицы
-    #ВРЕМЕННО ПОМЕНЯЛ, ПОСКОЛЬКУ НЕ РЕШЕНА ПРОБЛЕМА С ДЕТЕКТОМ
-    table.style = 'Table Grid'  # random_table_format.table_style
+    # Сетка для детекции
+    table.style = 'Table Grid'
 
     for row in table.rows:
         for cell in row.cells:
@@ -366,88 +364,10 @@ def add_footnotes_section(document):
         fn_paragraph.paragraph_format.left_indent = Pt(18)
         fn_paragraph.paragraph_format.space_after = Pt(2)
         fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
 
-def add_footnote(document, base_font_size):
-    """ Вызвать функцию == добавить сноску в документ
-    Сноска в данном понимании -- маленький текст в конце главы,
-    с пониженным размером шрифта, курсивом и подчеркиванием.
-    """
-    random_word = fake.word()
-    random_sentence = fake.sentence()
-
-    # Создаем текст сноски в нужном формате (word* -- definition)
-    footnote_text = f"{random_word}* — {random_sentence}"
-
-    footnote_paragraph = document.add_paragraph()
-    run = footnote_paragraph.add_run(footnote_text)
-
-    run.font.size = Pt(max(base_font_size - 2, 8))  # Уменьшаем размер шрифта
-    run.italic = True  # Устанавливаем курсив
-    run.underline = True  # Подчеркиваем текст
-
-    # Выравниваем сноску влево
-    footnote_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-
-
-def set_multicolumn(section, num_columns=2):
-    """Установить режим многоколонного текста"""
-    sectPr = section._sectPr
-    # Создаем элемент для колонок
-    cols = OxmlElement('w:cols')
-    cols.set(qn('w:num'), str(num_columns))
-    cols.set(qn('w:space'), '720')
-    cols.set(qn('w:equalWidth'), '1')
-
-    # Удаляем существующие колонки, если есть
-    # Делал, когда исправлял, не знаю, нужно ли сейчас
-    existing_cols = sectPr.find(qn('w:cols'))
-    if existing_cols is not None:
-        sectPr.remove(existing_cols)
-    sectPr.append(cols)
-
-
-def reset_multicolumn(section):
-    """ Сбросить с многоколонного режима до обычного """
-    sectPr = section._sectPr
-    # Удаляем элемент колонок, если существует
-    existing_cols = sectPr.find(qn('w:cols'))
-    if existing_cols is not None:
-        sectPr.remove(existing_cols)
-    # Добавляем обратно одну колонку по умолчанию
-    cols = OxmlElement('w:cols')
-    cols.set(qn('w:num'), '1')
-    cols.set(qn('w:space'), '720')
-    sectPr.append(cols)
-
-
-def add_multi_column_text(document, base_font_size):
-    """ Вызвать функцию == добавить многоколонный (2-3 колонны) текст"""
-    # Добавляем секцию с многоколонным текстом
-    multi_col_section = document.add_section(WD_SECTION.NEW_PAGE)
-    num_columns = random.randint(2, 3)  # Случайное количество колонок от 2 до 3
-    set_multicolumn(multi_col_section, num_columns=num_columns)
-
-    # Рассчитывалось как вставка определенного количества текста в каждую колонну,
-    # но оказалось, что текст вставляется просто в одну колонну, а потом избыток переносится.
-    # TODO: Может быть оптимизировано.
-    for _ in range(num_columns):
-        column_text = fake.text(
-            max_nb_chars=10000)  # Генерируем намного больше чем 1000 текст, чтобы после обрезать до 1000
-        if num_columns == 2:
-            column_text = column_text[:1000]  # Такая практика нужна была, чтобы во всех колонах было по 1000 символов.
-        else:
-            column_text = column_text[:633]  # Но оказалось, что это не работает, как должно.
-        # Добавляем новый параграф в документ для текущей колонки
-        paragraph = document.add_paragraph(column_text)
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY  # Выравнивание по ширине
-
-        # Устанавливаем размер шрифта
-        for run in paragraph.runs:
-            run.font.size = Pt(base_font_size)
-
-
-def get_paragraph(doc, based_font_size):
+def add_multicolumn_text(doc, based_font_size):
     generic = Generic(locale=Locale.RU)
     random = Random()
 
@@ -498,8 +418,10 @@ def get_footnote(doc, based_font_size):
     for note in range(1, random.randint(a=2, b=5)):
         random_word = generic.text.words(quantity=1)
         random_sentence = generic.text.words(quantity=random.randint(a=3, b=6))
-
-        footnote_text = f"{power_utf8[note]}{random_word[0]} — {' '.join(random_sentence)} \n"
+        if random.choice([True, False]):
+            footnote_text = f"{power_utf8[note]}{random_word[0]} — {' '.join(random_sentence)} \n"
+        else:
+            footnote_text = f"{random_word[0]}{power_utf8[note]} — {' '.join(random_sentence)} \n"
         paragraph.add_run(footnote_text).italic = True
 
 
@@ -554,15 +476,17 @@ def generate_document(path):
     element_funcs += [lambda: add_table_with_caption(document, random_table_format)] * random.randint(1, 2)
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
-    element_funcs += [lambda: get_paragraph(document, random_paragraph_format.font_size)] * random.randint(1, 3)
-    element_funcs += [lambda: add_footnotes_section(document)] * random.randint(1, 2)
+    element_funcs += [lambda: add_multicolumn_text(document, random_paragraph_format.font_size)] * random.randint(1, 3)
+    if random.random() < 0.70:
+        element_funcs += [lambda: add_footnotes_section(document)] * random.randint(0, 2)
+    elif random.random() < 0.40:
+        element_funcs += [lambda: get_footnote(document, random_paragraph_format.font_size)]
 
     for i in range(NUM_ITERATIONS):
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
         if i != 0:
-            new_sect = document.add_section(WD_SECTION.NEW_PAGE)
-            reset_multicolumn(new_sect)  # TODO [check actuality]: проверить надобность этой строки
+            document.add_section(WD_SECTION.NEW_PAGE)
         else:
             add_header_footer(document, random_paragraph_format.font_size)
 
@@ -577,9 +501,18 @@ def generate_document(path):
         # Добавление абзаца
         add_paragraph(document, random_paragraph_format)
 
+        # Для фикса бага с мультиколонками
+        last_was_heading = False
+
         random.shuffle(element_funcs)
         for func in element_funcs:
+            # Скипаем мультиколонку если прошлый элемент заголовок
+            if last_was_heading and 'add_multicolumn_text' in func.__code__.co_names:
+                continue
+            if 'add_heading' in func.__code__.co_names:
+                last_was_heading = True
+            else:
+                last_was_heading = False
             func()
 
-    # Сохранение документа
     document.save(path)
