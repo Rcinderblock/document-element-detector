@@ -50,33 +50,28 @@ def change_orientation(document, landscape=True):
         section.page_width, section.page_height = section.page_height, section.page_width
 
 
-def add_header_footer(document, base_font_size):
-    """
-    Функция добавления колонтитулов. Была рассчитана на многократный вызов, но в итоге применяется один раз.
-    :param document: cсылка на документ
-    :param base_font_size: базовый шрифт для стандартного текста листа
-    От него будем выбирать размер шрифта колонтитулов.
-    """
+def add_header(document, base_font_size):
     section = document.sections[-1]
     header = section.header
-    footer = section.footer
     header_text = fake.sentence(nb_words=5)
-    footer_text = fake.sentence(nb_words=5)
 
-    # Верхний колонтитул
     header_paragraph = header.paragraphs[0]
     header_paragraph.text = header_text
     header_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = header_paragraph.runs[0]
     run.font.size = Pt(base_font_size - 4)
 
-    # Нижний колонтитул
+
+def add_footer(document, base_font_size):
+    section = document.sections[-1]
+    footer = section.footer
+    footer_text = fake.sentence(nb_words=5)
+
     footer_paragraph = footer.paragraphs[0]
     footer_paragraph.text = footer_text
     footer_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = footer_paragraph.runs[0]
     run.font.size = Pt(base_font_size - 4)
-
 
 class RandomHeadingFormat:
     def __init__(self, random_paragraph_format):
@@ -353,13 +348,17 @@ def add_bulleted_list(document):
         paragraph.paragraph_format.space_after = Pt(0)
 
 
-def add_footnotes_section(document):
+def add_footnotes_section(document, random_paragraph_format):
     document.add_paragraph()
     for fn_count in range(random.randint(1, 10)):
         fn_paragraph = document.add_paragraph()
         index_run = fn_paragraph.add_run(f'[{fn_count}] ')
         index_run.bold = True
         fn_paragraph.add_run(fake.sentence(nb_words=random.randint(3, 7)))
+        fn_paragraph.runs[0].font.size = Pt(random_paragraph_format.font_size)
+        fn_paragraph.runs[0].font.name = random_paragraph_format.font_name
+        fn_paragraph.runs[1].font.size = Pt(random_paragraph_format.font_size)
+        fn_paragraph.runs[1].font.name = random_paragraph_format.font_name
         fn_paragraph.style = document.styles['Normal']
         fn_paragraph.paragraph_format.left_indent = Pt(18)
         fn_paragraph.paragraph_format.space_after = Pt(2)
@@ -412,7 +411,7 @@ def get_footnote(doc, based_font_size):
     section = doc.sections[0]
     paragraph = section.footer.paragraphs[0]
     paragraph.style.font.size = Pt(based_font_size)
-
+    
     paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
     power_utf8 = {1: '\u00B9', 2: '\u00B2', 3: '\u00B3', 4: '\u2074'}
     for note in range(1, random.randint(a=2, b=5)):
@@ -470,6 +469,8 @@ def generate_document(path):
     num_of_pictures = 1
     latex_data = pd.read_csv(r'doc_generator/latex_for_formulas.csv', index_col=False)['formula']
 
+    footnote_type = random.choices([0, 1], weights = [40, 60])[0]
+
     element_funcs = []
     element_funcs += [lambda: add_heading(document, random_heading_format)] * random.randint(1, 3)
     element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(1, 5)
@@ -477,18 +478,18 @@ def generate_document(path):
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
     element_funcs += [lambda: add_multicolumn_text(document, random_paragraph_format.font_size)] * random.randint(1, 3)
-    if random.random() < 0.70:
-        element_funcs += [lambda: add_footnotes_section(document)] * random.randint(0, 2)
-    elif random.random() < 0.40:
-        element_funcs += [lambda: get_footnote(document, random_paragraph_format.font_size)]
-
+    
     for i in range(NUM_ITERATIONS):
         # Добавление новой секции на новой странице, кроме первой
         # А на первой добавляем колонтитулы -- раз и на все страницы.
         if i != 0:
             document.add_section(WD_SECTION.NEW_PAGE)
+        elif (footnote_type == 1):
+            add_header(document, random_paragraph_format.font_size)
+            get_footnote(document, random_paragraph_format.font_size)
         else:
-            add_header_footer(document, random_paragraph_format.font_size)
+            add_header(document, random_paragraph_format.font_size)
+            add_footer(document, random_paragraph_format.font_size)
 
         # Изменение ориентации страницы на вертикальную с вероятностью 85%
         if random.random() < 0.85:
@@ -514,5 +515,8 @@ def generate_document(path):
             else:
                 last_was_heading = False
             func()
+        
+        if footnote_type == 0:
+            add_footnotes_section(document, random_paragraph_format)
 
     document.save(path)
