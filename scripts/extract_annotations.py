@@ -33,7 +33,7 @@ class DocumentAnalyzer:
             'header': (255, 255, 0),  # Yellow
             'footer': (128, 128, 128),  # Gray
             'footnote': (0, 128, 0),  # Dark Green
-            'formula': (228, 228, 100),  # Yellow
+            'formula': (0, 0, 255),  # Blue
         }
         self.base_font_size = None
 
@@ -154,6 +154,9 @@ class DocumentAnalyzer:
 
             # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
             page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
+
+            # Слияние боксов меченных списков
+            page_dict['marked_list'] = self.merge_rects(page_dict['marked_list'], max_y_distance=3, max_x_distance=0)
             page_data.append(page_dict)
 
         doc.close()
@@ -310,8 +313,8 @@ class DocumentAnalyzer:
             for span in line['spans']:
                 font_name = span['font']
                 fonts.append(font_name)
-        # 1. Проверка на использование математического шрифта
-        if fonts and 'CambriaMath' in fonts:
+            # 1. Проверка на использование математического шрифта
+        if fonts and ('CambriaMath' in fonts or 'STIXGeneral-Italic' in fonts or 'STIXGeneral-Regular' in fonts):
             if re.search(up_borders_symbols, text):
                 return True, True
             return True, False
@@ -325,7 +328,7 @@ class DocumentAnalyzer:
 
         # 3. Дополнительная проверка на наличие математических символов и греческих букв
         math_symbols = r'[∪∩≈≠∞∑∏√∂∇⊕⊗≡⊂∈∉∫]'  # Символы объединений, пересечений, суммы и другие
-        greek_letters = r'[αβγδεζηθικλμνξοπρστυφχψω]'  # Греческие буквы
+        greek_letters = r'[αβγδεζηθικλμνξοπρστυφχψ−]'  # Греческие буквы
         if re.search(math_symbols, text) or re.search(greek_letters, text):
             if re.search(up_borders_symbols, text):
                 return True, True
