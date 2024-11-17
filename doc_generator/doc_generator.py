@@ -101,20 +101,25 @@ def add_heading(document, random_heading_format):
 
     heading_text = fake.sentence(nb_words=random.randint(3, 7))  # Рандомная генерация фейкером / мимезисом
     heading = document.add_heading(level=level)
+
+    # Добавление нумерации заголовка с вероятностью 50%
+    if random.random() < 0.5:
+        numbering = f"{random.randint(1, 15)}. "
+        heading_text = numbering + heading_text
+    else:
+        heading_text = heading_text
+
     run = heading.add_run(heading_text)
-    run.bold = True
-    run.italic = random_heading_format.italic
+    run.bold = random.choice([True, False])
+    if not run.bold:
+        run.italic = True
+    else:
+        run.italic = random.choice([True, False])
     run.font.size = Pt(font_size)
     run.font.color.rgb = RGBColor(0, 0, 0)
 
     # Выравнивание заголовка (по условию задачи чаще центр)
-    alignment = random_heading_format.alignment
-
-    # Добавление нумерации заголовка с вероятностью 50%
-    if random.random() < 0.5 and level == 1:
-        numbering = f"{random.randint(1, 15)}."
-        # Вставляем номер перед текстом заголовка
-        heading.text = numbering + " " + heading_text
+    heading.paragraph_format.alignment = random_heading_format.alignment
 
 
 class RandomParagraphFormat:
@@ -362,7 +367,7 @@ def add_footnotes_section(document, random_paragraph_format):
         fn_paragraph = document.add_paragraph()
         index_run = fn_paragraph.add_run(f'[{fn_count}] ')
         index_run.bold = True
-        fn_paragraph.add_run(fake.sentence(nb_words=random.randint(3, 7)))
+        fn_paragraph.add_run(fake.sentence(nb_words=random.randint(3, 15)))
         fn_paragraph.runs[0].font.size = Pt(random_paragraph_format.font_size)
         fn_paragraph.runs[0].font.name = random_paragraph_format.font_name
         fn_paragraph.runs[1].font.size = Pt(random_paragraph_format.font_size)

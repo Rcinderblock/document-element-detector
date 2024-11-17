@@ -182,14 +182,16 @@ class DocumentAnalyzer:
             page_dict['formula'] = self.merge_rects(page_dict['formula'], max_y_distance=5, max_x_distance=5)
 
             # Слияние боксов текстов (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
-            page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=6, max_x_distance=0)
+            page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=8, max_x_distance=0)
 
             # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
             page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
 
-            page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=3, max_x_distance=0)
+            page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=5, max_x_distance=0)
 
-            page_dict['marked_list'] = self.merge_rects(page_dict['marked_list'], max_y_distance=3, max_x_distance=0)
+            page_dict['marked_list'] = self.merge_rects(page_dict['marked_list'], max_y_distance=5, max_x_distance=0)
+
+            page_dict['title'] = self.merge_rects(page_dict['title'], max_y_distance=8, max_x_distance=0)
 
             page_data.append(page_dict)
 
@@ -247,6 +249,7 @@ class DocumentAnalyzer:
         """Определяет, является ли блок заголовком на основе его шрифта."""
         title_font_size = self.base_font_size + 2
         is_bold = False
+        is_italic = False
         font_sizes = []
         # Собираем все размеры шрифта
         for line in block['lines']:
@@ -254,12 +257,14 @@ class DocumentAnalyzer:
                 font_size = span.get('size')
                 if not is_bold:
                     is_bold = 'bold' in span['font'].lower()
+                if not is_italic:
+                    is_italic = 'italic' in span['font'].lower()
                 if font_size:  # Если размер шрифта найден
                     font_size = round(font_size)
                     font_sizes.append(font_size)
 
         # Если нет шрифтов, возвращаем False
-        if not font_sizes or not is_bold:
+        if not font_sizes or not (is_bold or is_italic):
             return False
 
         # Находим самый популярный размер шрифта
@@ -330,7 +335,7 @@ class DocumentAnalyzer:
         numbered_pattern = r'^\d+\.\s'
         left_indent = round(bbox[0], 3)
         if bool(re.match(numbered_pattern, text)) and left_indent == self.list_mark_left_indent:
-           return True
+            return True
         
         if not self.prev_element:
             return False
@@ -345,10 +350,10 @@ class DocumentAnalyzer:
     def _is_marked_list(self, block):
         text = self.extract_text_from_block(block)
         bbox = tuple(block['bbox'])
-        numbered_pattern = r'^(\s*[-•*–·]\s+)'
+        marked_pattern = r'^(\s*[-•*–·]\s+)'
         left_indent = round(bbox[0], 3)
-        if bool(re.match(numbered_pattern, text)) and left_indent == self.list_mark_left_indent:
-           return True
+        if bool(re.match(marked_pattern, text)) and left_indent == self.list_mark_left_indent:
+            return True
         
         if not self.prev_element:
             return False
