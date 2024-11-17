@@ -36,6 +36,10 @@ class DocumentAnalyzer:
             'formula': (228, 228, 100),  # Yellow
         }
         self.base_font_size = None
+        self.list_numb_left_indent = round(133.3000030517578, 3)
+        self.list_text_left_indent = round(151.3000030517578, 3)
+        self.line_spacing = None
+        self.prev_element = None
 
     def extract_coordinates(self, pdf_path):
         """Извлекает координаты всех элементов, классифицируя их"""
@@ -75,9 +79,19 @@ class DocumentAnalyzer:
                 paragraphs = []
                 page = doc[0]
                 blocks = page.get_text("dict")["blocks"]
+                prev_line = None
+                line = None
 
                 for block in blocks:
                     block_bbox = block["bbox"]
+
+                    if not self.line_spacing:
+                        if not self._is_header(block['bbox']) and not self._is_footer(block['bbox'], page.rect.height) and not self._is_footnote(block, page.rect.height):
+                            line = block
+                            if not prev_line:
+                                prev_line = line
+                            else:
+                                self.line_spacing = line['bbox'][1] - prev_line['bbox'][3]
 
                     # Проверяем, находится ли блок в одной из областей таблицы
                     is_in_table_area = any(
@@ -108,21 +122,29 @@ class DocumentAnalyzer:
 
                 if any(self._is_within_table(bbox, table) for table in table_areas):
                     continue
-
+                    
+                element_name = None
                 if block_type == 1:  # is_picture
                     page_dict['picture'].append(self._convert_coordinates(bbox))
+                    element_name = 'picture'
                 elif self._is_table_signature(text):
                     page_dict['table_signature'].append(self._convert_coordinates(bbox))
+                    element_name = 'table_signature'
                 elif self._is_picture_signature(text):
                     page_dict['picture_signature'].append(self._convert_coordinates(bbox))
+                    element_name = 'picture_signature'
                 elif self._is_header(bbox):
                     page_dict['header'].append(self._convert_coordinates(bbox))
-                elif self._is_numbered_list(text):
+                    element_name = 'header'
+                elif self._is_numbered_list(block):
                     page_dict['numbered_list'].append(self._convert_coordinates(bbox))
+                    element_name = 'numbered_list'
                 elif self._is_marked_list(text):
                     page_dict['marked_list'].append(self._convert_coordinates(bbox))
+                    element_name = 'marked_list'
                 elif self._is_footer(bbox, page.rect.height):
                     page_dict['footer'].append(self._convert_coordinates(bbox))
+                    element_name = 'footer'
                 elif self._is_formula(block)[0]:
                     coords = self._convert_coordinates(bbox)
                     # Если в формуле есть знак суммы, интегралы или знак произведения
@@ -131,12 +153,16 @@ class DocumentAnalyzer:
                         coords[1] -= 5
                         coords[-1] += 5
                     page_dict['formula'].append(coords)
+                    element_name = 'formula'
                 elif self._is_footnote(block, page.rect.height):
                     page_dict['footnote'].append(self._convert_coordinates(bbox))
+                    element_name = 'footnote'
                 elif self._is_title(block):
                     page_dict['title'].append(self._convert_coordinates(bbox))
+                    element_name = 'title'
                 else:
                     page_dict['paragraph'].append(self._convert_coordinates(bbox))
+                    element_name = 'paragraph'
                     # Складываем шрифты параграфов
                     for line in block['lines']:
                         for span in line['spans']:
@@ -146,6 +172,12 @@ class DocumentAnalyzer:
                     if paragraph_lines_count > 50 and len(paragraphs_font_sizes) > 5:
                         self.base_font_size = self.update_base_font_size(paragraphs_font_sizes)
 
+                self.prev_element = { 
+                    'name': element_name,
+                    'text': text,
+                    'bbox': bbox,
+                }
+
             # Слияние боксов формул если они рядом или пересекаются
             page_dict['formula'] = self.merge_rects(page_dict['formula'], max_y_distance=5, max_x_distance=5)
 
@@ -154,6 +186,8 @@ class DocumentAnalyzer:
 
             # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
             page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
+
+            page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=5, max_x_distance=0)
             page_data.append(page_dict)
 
         doc.close()
@@ -279,17 +313,40 @@ class DocumentAnalyzer:
                 return True
         return False
 
-    def _is_numbered_list(self, text):
-        return bool(re.match(r'^\d+\.\s', text))
+    def _is_numbered_list(self, block):
+        is_bold = False
+        for line in block['lines']:
+            for span in line['spans']:
+                if not is_bold:
+                    is_bold = 'bold' in span['font'].lower()
+        if is_bold:
+            return False
+        
+        text = self.extract_text_from_block(block)
+        bbox = tuple(block['bbox'])
+        numbered_pattern = r'^\d+\.\s'
+        left_indent = round(bbox[0], 3)
+        if bool(re.match(numbered_pattern, text)) and left_indent == self.list_numb_left_indent:
+           return True
+        
+        if not self.prev_element:
+            return False
+
+        space = bbox[1] - self.prev_element['bbox'][3]
+
+        if self.prev_element['name'] == 'numbered_list' and space < self.line_spacing and left_indent == self.list_text_left_indent:
+            return True
+        
+        return False
 
     def _is_marked_list(self, text):
         return bool(re.match(r'^(\s*[-•*]\s+)', text))
 
     def _is_footer(self, bbox, page_height):
-        return bbox[1] > page_height - 50
+        return bbox[1] > page_height - 60
 
     def _is_header(self, bbox):
-        return bbox[1] < 50
+        return bbox[1] < 60
 
     def _is_formula(self, block) -> tuple[bool, bool]:
         """
@@ -349,7 +406,7 @@ class DocumentAnalyzer:
                 fonts.append(font_name)
 
         # Проверка на присутствие номеров сносок (например, [1], 1), [1.], 1], маленькие цифры и цифры в скобках
-        footnote_pattern = r'^\[\^?\d+\]|\d+\)|\d+\.$|\[\d+\]|\d+[\)\.\]]'  # Шаблон для номеров сносок
+        footnote_pattern = r'^\[\^?\d+\]|\d+\)|\d+\.$|\[\d+\]|\d+[\)\]]'  # Шаблон для номеров сносок
         if re.search(footnote_pattern, text.strip()):
             return True
 
