@@ -36,7 +36,7 @@ class DocumentAnalyzer:
             'formula': (228, 228, 100),  # Yellow
         }
         self.base_font_size = None
-        self.list_numb_left_indent = round(133.3000030517578, 3)
+        self.list_mark_left_indent = round(133.3000030517578, 3)
         self.list_text_left_indent = round(151.3000030517578, 3)
         self.line_spacing = None
         self.prev_element = None
@@ -139,7 +139,7 @@ class DocumentAnalyzer:
                 elif self._is_numbered_list(block):
                     page_dict['numbered_list'].append(self._convert_coordinates(bbox))
                     element_name = 'numbered_list'
-                elif self._is_marked_list(text):
+                elif self._is_marked_list(block):
                     page_dict['marked_list'].append(self._convert_coordinates(bbox))
                     element_name = 'marked_list'
                 elif self._is_footer(bbox, page.rect.height):
@@ -182,12 +182,15 @@ class DocumentAnalyzer:
             page_dict['formula'] = self.merge_rects(page_dict['formula'], max_y_distance=5, max_x_distance=5)
 
             # Слияние боксов текстов (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
-            page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=3, max_x_distance=0)
+            page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=6, max_x_distance=0)
 
             # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
             page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
 
-            page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=5, max_x_distance=0)
+            page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=3, max_x_distance=0)
+
+            page_dict['marked_list'] = self.merge_rects(page_dict['marked_list'], max_y_distance=3, max_x_distance=0)
+
             page_data.append(page_dict)
 
         doc.close()
@@ -326,7 +329,7 @@ class DocumentAnalyzer:
         bbox = tuple(block['bbox'])
         numbered_pattern = r'^\d+\.\s'
         left_indent = round(bbox[0], 3)
-        if bool(re.match(numbered_pattern, text)) and left_indent == self.list_numb_left_indent:
+        if bool(re.match(numbered_pattern, text)) and left_indent == self.list_mark_left_indent:
            return True
         
         if not self.prev_element:
@@ -339,8 +342,23 @@ class DocumentAnalyzer:
         
         return False
 
-    def _is_marked_list(self, text):
-        return bool(re.match(r'^(\s*[-•*]\s+)', text))
+    def _is_marked_list(self, block):
+        text = self.extract_text_from_block(block)
+        bbox = tuple(block['bbox'])
+        numbered_pattern = r'^(\s*[-•*–·]\s+)'
+        left_indent = round(bbox[0], 3)
+        if bool(re.match(numbered_pattern, text)) and left_indent == self.list_mark_left_indent:
+           return True
+        
+        if not self.prev_element:
+            return False
+
+        space = bbox[1] - self.prev_element['bbox'][3]
+
+        if self.prev_element['name'] == 'marked_list' and space < self.line_spacing and left_indent == self.list_text_left_indent:
+            return True
+        
+        return False
 
     def _is_footer(self, bbox, page_height):
         return bbox[1] > page_height - 60
