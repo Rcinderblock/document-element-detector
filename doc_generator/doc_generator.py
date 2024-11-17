@@ -324,6 +324,13 @@ def add_numbered_list(document, random_paragraph_format):
         paragraph.paragraph_format.space_after = Pt(0)
         paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
 
+    empty_paragraph = document.add_paragraph(style="Normal")
+    empty_paragraph.paragraph_format.space_before = Pt(0)
+    empty_paragraph.paragraph_format.space_after = Pt(0)
+    empty_paragraph.paragraph_format.line_spacing = Pt(2)
+    empty_run = empty_paragraph.add_run(' ')
+    empty_run.font.size = Pt(1)
+
 
 def add_bulleted_list(document, random_paragraph_format):
     """ Вызвать функцию == добавить маркированный список в документ"""
@@ -340,6 +347,13 @@ def add_bulleted_list(document, random_paragraph_format):
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
         paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
+    
+    empty_paragraph = document.add_paragraph(style="Normal")
+    empty_paragraph.paragraph_format.space_before = Pt(0)
+    empty_paragraph.paragraph_format.space_after = Pt(0)
+    empty_paragraph.paragraph_format.line_spacing = Pt(1)
+    empty_run = empty_paragraph.add_run(' ')
+    empty_run.font.size = Pt(1)
 
 
 def add_footnotes_section(document, random_paragraph_format):
