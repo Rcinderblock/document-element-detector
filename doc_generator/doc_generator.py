@@ -120,8 +120,8 @@ def add_heading(document, random_heading_format):
 class RandomParagraphFormat:
     def __init__(self):
         self.left_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
-        self.space_before = random.randint(0, 10)
-        self.space_after = random.randint(0, 10)
+        self.space_before = random.randint(1, 10)
+        self.space_after = random.randint(1, 10)
         self.first_line_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
         self.alignment = random.choice(
             [WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.JUSTIFY])
@@ -129,6 +129,7 @@ class RandomParagraphFormat:
         self.font_name = random.choice(
             ['Times New Roman', 'Arial', 'Calibri', 'Georgia', 'Verdana', 'Tahoma', 'Garamond', 'Helvetica',
              'Courier New', 'Trebuchet MS', 'Comic Sans'])
+        self.line_spacing = random.uniform(1.0, 1.4)
 
 
 def add_paragraph(document, random_paragraph_format):
@@ -143,6 +144,8 @@ def add_paragraph(document, random_paragraph_format):
 
     # Выравнивание абзаца
     paragraph.alignment = random_paragraph_format.alignment
+    
+    paragraph_format.line_spacing = random_paragraph_format.line_spacing
 
     # Генерация текста для абзаца
     if random.choice([True, False]):
@@ -305,17 +308,21 @@ def get_formula(doc, latex_data):
     math2docx.add_math(paragraph, latex_)
 
 
-def add_numbered_list(document):
+def add_numbered_list(document, random_paragraph_format):
     """ Вызвать функцию == добавить нумерованный список в документ"""
     list_type = 'List Number'
     num_items = random.randint(3, 7)
     for _ in range(num_items):
-        list_item = fake.sentence(nb_words=random.randint(3, 10)) if random.choice([True, False]) else \
-            text_mimesis.text(quantity=1).split('.')[0][:10]
-        paragraph = document.add_paragraph(list_item, style=list_type)
+        list_item = fake.sentence(nb_words=random.randint(3, 15)) if random.choice([True, False]) else \
+            text_mimesis.text(quantity=1).split('.')[0]
+        paragraph = document.add_paragraph(style=list_type)
+        run = paragraph.add_run(list_item)
+        run.font.size = Pt(random_paragraph_format.font_size)
+        run.font.name = random_paragraph_format.font_name
         paragraph.paragraph_format.left_indent = Inches(0.85)
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
 
 
 def add_bulleted_list(document):
@@ -457,7 +464,7 @@ def generate_document(path):
     element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(1, 5)
     element_funcs += [lambda: get_table(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
-    element_funcs += [lambda: add_numbered_list(document)] * random.randint(1, 3)
+    element_funcs += [lambda: add_numbered_list(document, random_paragraph_format)] * random.randint(1, 3)
     element_funcs += [lambda: add_bulleted_list(document)] * random.randint(1, 3)
     element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
     element_funcs += [lambda: add_multicolumn_text(document, random_paragraph_format.font_size)] * random.randint(1, 3)
