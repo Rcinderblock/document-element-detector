@@ -2,6 +2,7 @@ import os
 import re
 import json
 from collections import Counter
+from enum import Enum
 
 # не менять на fitz, иначе у Тимофея не зафурычит
 import pymupdf
@@ -11,6 +12,18 @@ from PIL import Image, ImageDraw
 PDF_DIR = 'data/pdf/'
 ANNOTATIONS_DIR = 'data/annotations/'
 
+class ElementType(Enum):
+    PICTURE = 0
+    TABLE_SIGNATURE = 1
+    PICTURE_SIGNATURE = 2
+    HEADER = 3
+    NUMBERED_LIST = 4
+    MARKED_LIST = 5
+    FOOTER = 6
+    FORMULA = 7
+    FOOTNOTE = 8
+    TITLE = 9
+    PARAGRAPH = 10
 
 class DocumentAnalyzer:
 
@@ -36,8 +49,8 @@ class DocumentAnalyzer:
             'formula': (228, 228, 100),  # Yellow
         }
         self.base_font_size = None
-        self.list_mark_left_indent = round(133.3000030517578, 3)
-        self.list_text_left_indent = round(151.3000030517578, 3)
+        self.list_mark_left_indent = 133.3000030517578
+        self.list_text_left_indent = 151.3000030517578
         self.line_spacing = None
         self.prev_element = None
 
@@ -123,28 +136,28 @@ class DocumentAnalyzer:
                 if any(self._is_within_table(bbox, table) for table in table_areas):
                     continue
                     
-                element_name = None
+                element_type = None
                 if block_type == 1:  # is_picture
                     page_dict['picture'].append(self._convert_coordinates(bbox))
-                    element_name = 'picture'
+                    element_type = ElementType.PICTURE
                 elif self._is_table_signature(text):
                     page_dict['table_signature'].append(self._convert_coordinates(bbox))
-                    element_name = 'table_signature'
+                    element_type = ElementType.TABLE_SIGNATURE
                 elif self._is_picture_signature(text):
                     page_dict['picture_signature'].append(self._convert_coordinates(bbox))
-                    element_name = 'picture_signature'
+                    element_type = ElementType.PICTURE_SIGNATURE
                 elif self._is_header(bbox):
                     page_dict['header'].append(self._convert_coordinates(bbox))
-                    element_name = 'header'
+                    element_type = ElementType.HEADER
                 elif self._is_numbered_list(block):
                     page_dict['numbered_list'].append(self._convert_coordinates(bbox))
-                    element_name = 'numbered_list'
+                    element_type = ElementType.NUMBERED_LIST
                 elif self._is_marked_list(block):
                     page_dict['marked_list'].append(self._convert_coordinates(bbox))
-                    element_name = 'marked_list'
+                    element_type = ElementType.MARKED_LIST
                 elif self._is_footer(bbox, page.rect.height):
                     page_dict['footer'].append(self._convert_coordinates(bbox))
-                    element_name = 'footer'
+                    element_type = ElementType.FOOTER
                 elif self._is_formula(block)[0]:
                     coords = self._convert_coordinates(bbox)
                     # Если в формуле есть знак суммы, интегралы или знак произведения
@@ -153,16 +166,16 @@ class DocumentAnalyzer:
                         coords[1] -= 5
                         coords[-1] += 5
                     page_dict['formula'].append(coords)
-                    element_name = 'formula'
+                    element_type = ElementType.FORMULA
                 elif self._is_footnote(block, page.rect.height):
                     page_dict['footnote'].append(self._convert_coordinates(bbox))
-                    element_name = 'footnote'
+                    element_type = ElementType.FOOTNOTE
                 elif self._is_title(block):
                     page_dict['title'].append(self._convert_coordinates(bbox))
-                    element_name = 'title'
+                    element_type = ElementType.TITLE
                 else:
                     page_dict['paragraph'].append(self._convert_coordinates(bbox))
-                    element_name = 'paragraph'
+                    element_type = ElementType.PARAGRAPH
                     # Складываем шрифты параграфов
                     for line in block['lines']:
                         for span in line['spans']:
@@ -173,7 +186,7 @@ class DocumentAnalyzer:
                         self.base_font_size = self.update_base_font_size(paragraphs_font_sizes)
 
                 self.prev_element = { 
-                    'name': element_name,
+                    'element_type': element_type,
                     'text': text,
                     'bbox': bbox,
                 }
@@ -333,8 +346,8 @@ class DocumentAnalyzer:
         text = self.extract_text_from_block(block)
         bbox = tuple(block['bbox'])
         numbered_pattern = r'^\d+\.\s'
-        left_indent = round(bbox[0], 3)
-        if bool(re.match(numbered_pattern, text)) and left_indent == self.list_mark_left_indent:
+        left_indent = bbox[0]
+        if bool(re.match(numbered_pattern, text)) and abs(left_indent - self.list_mark_left_indent) < 1e-05:
             return True
         
         if not self.prev_element:
@@ -342,7 +355,7 @@ class DocumentAnalyzer:
 
         space = bbox[1] - self.prev_element['bbox'][3]
 
-        if self.prev_element['name'] == 'numbered_list' and space < self.line_spacing and left_indent == self.list_text_left_indent:
+        if self.prev_element['element_type'] == ElementType.NUMBERED_LIST and space < self.line_spacing and abs(left_indent - self.list_text_left_indent) < 1e-05:
             return True
         
         return False
@@ -352,15 +365,15 @@ class DocumentAnalyzer:
         bbox = tuple(block['bbox'])
         marked_pattern = r'^(\s*[-•*–·]\s+)'
         left_indent = round(bbox[0], 3)
-        if bool(re.match(marked_pattern, text)) and left_indent == self.list_mark_left_indent:
-            return True
+        if bool(re.match(marked_pattern, text)) and abs(left_indent - self.list_mark_left_indent) < 1e-05:
+           return True
         
         if not self.prev_element:
             return False
 
         space = bbox[1] - self.prev_element['bbox'][3]
 
-        if self.prev_element['name'] == 'marked_list' and space < self.line_spacing and left_indent == self.list_text_left_indent:
+        if self.prev_element['element_type'] == ElementType.MARKED_LIST and space < self.line_spacing and abs(left_indent - self.list_text_left_indent) < 1e-05:
             return True
         
         return False
