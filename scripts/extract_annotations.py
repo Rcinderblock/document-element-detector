@@ -49,8 +49,8 @@ class DocumentAnalyzer:
             'formula': (228, 228, 100),  # Yellow
         }
         self.base_font_size = None
-        self.list_mark_left_indent = 133.3000030517578
-        self.list_text_left_indent = 151.3000030517578
+        self.list_mark_left_indent = 133.22000122070312
+        self.list_text_left_indent = 151.22000122070312
         self.line_spacing = None
         self.prev_element = None
 
@@ -200,9 +200,9 @@ class DocumentAnalyzer:
             # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
             page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
 
-            page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=5, max_x_distance=0)
+            page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=8, max_x_distance=0)
 
-            page_dict['marked_list'] = self.merge_rects(page_dict['marked_list'], max_y_distance=5, max_x_distance=0)
+            page_dict['marked_list'] = self.merge_rects(page_dict['marked_list'], max_y_distance=8, max_x_distance=0)
 
             page_dict['title'] = self.merge_rects(page_dict['title'], max_y_distance=8, max_x_distance=0)
 

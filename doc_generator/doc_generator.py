@@ -84,6 +84,11 @@ class RandomHeadingFormat:
         self.italic = random.random() < 0.3
         self.alignment = random.choices([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT],
                                         weights=[30, 70, 30])[0]
+        self.bold = random.choice([True, False])
+        if not self.bold:
+            self.italic = True
+        else:
+            self.italic = random.choice([True, False])
 
 
 def add_heading(document, random_heading_format):
@@ -110,11 +115,8 @@ def add_heading(document, random_heading_format):
         heading_text = heading_text
 
     run = heading.add_run(heading_text)
-    run.bold = random.choice([True, False])
-    if not run.bold:
-        run.italic = True
-    else:
-        run.italic = random.choice([True, False])
+    run.bold = random_heading_format.bold
+    run.italic = random_heading_format.italic
     run.font.size = Pt(font_size)
     run.font.color.rgb = RGBColor(0, 0, 0)
 
@@ -317,6 +319,7 @@ def add_numbered_list(document, random_paragraph_format):
     """ Вызвать функцию == добавить нумерованный список в документ"""
     list_type = 'List Number'
     num_items = random.randint(3, 7)
+    paragraph = None
     for _ in range(num_items):
         list_item = fake.sentence(nb_words=random.randint(3, 15)) if random.choice([True, False]) else \
             text_mimesis.text(quantity=1).split('.')[0]
@@ -329,18 +332,14 @@ def add_numbered_list(document, random_paragraph_format):
         paragraph.paragraph_format.space_after = Pt(0)
         paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
 
-    empty_paragraph = document.add_paragraph(style="Normal")
-    empty_paragraph.paragraph_format.space_before = Pt(0)
-    empty_paragraph.paragraph_format.space_after = Pt(0)
-    empty_paragraph.paragraph_format.line_spacing = Pt(2)
-    empty_run = empty_paragraph.add_run(' ')
-    empty_run.font.size = Pt(1)
+    paragraph.paragraph_format.space_after = Pt(5)
 
 
 def add_bulleted_list(document, random_paragraph_format):
     """ Вызвать функцию == добавить маркированный список в документ"""
     list_type = 'List Bullet'
     num_items = random.randint(3, 7)
+    paragraph = None
     for _ in range(num_items):
         list_item = fake.sentence(nb_words=random.randint(3, 15)) if random.choice([True, False]) else \
             text_mimesis.text(quantity=1).split('.')[0]
@@ -353,12 +352,7 @@ def add_bulleted_list(document, random_paragraph_format):
         paragraph.paragraph_format.space_after = Pt(0)
         paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
     
-    empty_paragraph = document.add_paragraph(style="Normal")
-    empty_paragraph.paragraph_format.space_before = Pt(0)
-    empty_paragraph.paragraph_format.space_after = Pt(0)
-    empty_paragraph.paragraph_format.line_spacing = Pt(1)
-    empty_run = empty_paragraph.add_run(' ')
-    empty_run.font.size = Pt(1)
+    paragraph.paragraph_format.space_after = Pt(5)
 
 
 def add_footnotes_section(document, random_paragraph_format):
@@ -373,6 +367,7 @@ def add_footnotes_section(document, random_paragraph_format):
         fn_paragraph.runs[1].font.size = Pt(random_paragraph_format.font_size)
         fn_paragraph.runs[1].font.name = random_paragraph_format.font_name
         fn_paragraph.style = document.styles['Normal']
+        fn_paragraph.first_line_indent = random_paragraph_format.first_line_indent - 0.2
         fn_paragraph.paragraph_format.left_indent = Pt(18)
         fn_paragraph.paragraph_format.space_after = Pt(2)
         fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
