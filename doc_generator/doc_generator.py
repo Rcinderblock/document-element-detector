@@ -84,6 +84,11 @@ class RandomHeadingFormat:
         self.italic = random.random() < 0.3
         self.alignment = random.choices([WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT],
                                         weights=[30, 70, 30])[0]
+        self.bold = random.choice([True, False])
+        if not self.bold:
+            self.italic = True
+        else:
+            self.italic = random.choice([True, False])
 
 
 def add_heading(document, random_heading_format):
@@ -101,27 +106,29 @@ def add_heading(document, random_heading_format):
 
     heading_text = fake.sentence(nb_words=random.randint(3, 7))  # Рандомная генерация фейкером / мимезисом
     heading = document.add_heading(level=level)
+
+    # Добавление нумерации заголовка с вероятностью 50%
+    if random.random() < 0.5:
+        numbering = f"{random.randint(1, 15)}. "
+        heading_text = numbering + heading_text
+    else:
+        heading_text = heading_text
+
     run = heading.add_run(heading_text)
-    run.bold = True
+    run.bold = random_heading_format.bold
     run.italic = random_heading_format.italic
     run.font.size = Pt(font_size)
     run.font.color.rgb = RGBColor(0, 0, 0)
 
     # Выравнивание заголовка (по условию задачи чаще центр)
-    alignment = random_heading_format.alignment
-
-    # Добавление нумерации заголовка с вероятностью 50%
-    if random.random() < 0.5 and level == 1:
-        numbering = f"{random.randint(1, 15)}."
-        # Вставляем номер перед текстом заголовка
-        heading.text = numbering + " " + heading_text
+    heading.paragraph_format.alignment = random_heading_format.alignment
 
 
 class RandomParagraphFormat:
     def __init__(self):
         self.left_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
-        self.space_before = random.randint(0, 10)
-        self.space_after = random.randint(0, 10)
+        self.space_before = random.randint(3, 10)
+        self.space_after = random.randint(3, 10)
         self.first_line_indent = Inches(0.25) if random.choice([True, False]) else Inches(0)
         self.alignment = random.choice(
             [WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.JUSTIFY])
@@ -129,6 +136,7 @@ class RandomParagraphFormat:
         self.font_name = random.choice(
             ['Times New Roman', 'Arial', 'Calibri', 'Georgia', 'Verdana', 'Tahoma', 'Garamond', 'Helvetica',
              'Courier New', 'Trebuchet MS', 'Comic Sans'])
+        self.line_spacing = random.uniform(1.0, 1.4)
 
 
 def add_paragraph(document, random_paragraph_format):
@@ -143,6 +151,8 @@ def add_paragraph(document, random_paragraph_format):
 
     # Выравнивание абзаца
     paragraph.alignment = random_paragraph_format.alignment
+    
+    paragraph_format.line_spacing = random_paragraph_format.line_spacing
 
     # Генерация текста для абзаца
     if random.choice([True, False]):
@@ -305,30 +315,44 @@ def get_formula(doc, latex_data):
     math2docx.add_math(paragraph, latex_)
 
 
-def add_numbered_list(document):
+def add_numbered_list(document, random_paragraph_format):
     """ Вызвать функцию == добавить нумерованный список в документ"""
     list_type = 'List Number'
     num_items = random.randint(3, 7)
+    paragraph = None
     for _ in range(num_items):
-        list_item = fake.sentence(nb_words=random.randint(3, 10)) if random.choice([True, False]) else \
-            text_mimesis.text(quantity=1).split('.')[0][:10]
-        paragraph = document.add_paragraph(list_item, style=list_type)
+        list_item = fake.sentence(nb_words=random.randint(3, 15)) if random.choice([True, False]) else \
+            text_mimesis.text(quantity=1).split('.')[0]
+        paragraph = document.add_paragraph(style=list_type)
+        run = paragraph.add_run(list_item)
+        run.font.size = Pt(random_paragraph_format.font_size)
+        run.font.name = random_paragraph_format.font_name
         paragraph.paragraph_format.left_indent = Inches(0.85)
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
+
+    paragraph.paragraph_format.space_after = Pt(5)
 
 
-def add_bulleted_list(document):
+def add_bulleted_list(document, random_paragraph_format):
     """ Вызвать функцию == добавить маркированный список в документ"""
     list_type = 'List Bullet'
     num_items = random.randint(3, 7)
+    paragraph = None
     for _ in range(num_items):
-        list_item = fake.sentence(nb_words=random.randint(3, 10)) if random.choice([True, False]) else \
+        list_item = fake.sentence(nb_words=random.randint(3, 15)) if random.choice([True, False]) else \
             text_mimesis.text(quantity=1).split('.')[0]
-        paragraph = document.add_paragraph(list_item, style=list_type)
+        paragraph = document.add_paragraph(style=list_type)
+        run = paragraph.add_run(list_item)
+        run.font.size = Pt(random_paragraph_format.font_size)
+        run.font.name = random_paragraph_format.font_name
         paragraph.paragraph_format.left_indent = Inches(0.85)
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
+    
+    paragraph.paragraph_format.space_after = Pt(5)
 
 
 def add_footnotes_section(document, random_paragraph_format):
@@ -337,12 +361,13 @@ def add_footnotes_section(document, random_paragraph_format):
         fn_paragraph = document.add_paragraph()
         index_run = fn_paragraph.add_run(f'[{fn_count}] ')
         index_run.bold = True
-        fn_paragraph.add_run(fake.sentence(nb_words=random.randint(3, 7)))
+        fn_paragraph.add_run(fake.sentence(nb_words=random.randint(3, 15)))
         fn_paragraph.runs[0].font.size = Pt(random_paragraph_format.font_size)
         fn_paragraph.runs[0].font.name = random_paragraph_format.font_name
         fn_paragraph.runs[1].font.size = Pt(random_paragraph_format.font_size)
         fn_paragraph.runs[1].font.name = random_paragraph_format.font_name
         fn_paragraph.style = document.styles['Normal']
+        fn_paragraph.first_line_indent = random_paragraph_format.first_line_indent - 0.2
         fn_paragraph.paragraph_format.left_indent = Pt(18)
         fn_paragraph.paragraph_format.space_after = Pt(2)
         fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -457,8 +482,8 @@ def generate_document(path):
     element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(1, 5)
     element_funcs += [lambda: get_table(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
-    element_funcs += [lambda: add_numbered_list(document)] * random.randint(1, 3)
-    element_funcs += [lambda: add_bulleted_list(document)] * random.randint(1, 3)
+    element_funcs += [lambda: add_numbered_list(document, random_paragraph_format)] * random.randint(1, 3)
+    element_funcs += [lambda: add_bulleted_list(document, random_paragraph_format)] * random.randint(1, 3)
     element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
     element_funcs += [lambda: add_multicolumn_text(document, random_paragraph_format.font_size)] * random.randint(1, 3)
 
