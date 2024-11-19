@@ -371,7 +371,7 @@ def add_footnotes_section(document, random_paragraph_format):
         fn_paragraph.paragraph_format.left_indent = Pt(18)
         fn_paragraph.paragraph_format.space_after = Pt(2)
         fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        fn_paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
 
 
 def add_multicolumn_text(doc, based_font_size):

@@ -53,6 +53,7 @@ class DocumentAnalyzer:
         self.list_text_left_indent = 151.22000122070312
         self.line_spacing = None
         self.prev_element = None
+        self.is_fn_format = False
 
     def extract_coordinates(self, pdf_path):
         """Извлекает координаты всех элементов, классифицируя их"""
@@ -444,6 +445,13 @@ class DocumentAnalyzer:
         # Проверка на присутствие номеров сносок (например, [1], 1), [1.], 1], маленькие цифры и цифры в скобках
         footnote_pattern = r'^\[\^?\d+\]|\d+\)|\d+\.$|\[\d+\]|\d+[\)\]]'  # Шаблон для номеров сносок
         if re.search(footnote_pattern, text.strip()):
+            self.is_fn_pattern = True
+            return True
+        
+        if self.prev_element:
+            space = bbox[1] - self.prev_element['bbox'][3]
+
+        if self.is_fn_format and self.prev_element['element_type'] == ElementType.FOOTNOTE and space < self.line_spacing:
             return True
 
         # Проверка на наличие верхних индексов (например, ¹, ², ³, ...)
