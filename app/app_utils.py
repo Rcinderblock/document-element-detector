@@ -5,9 +5,13 @@ import json
 from ultralytics import YOLO
 
 
-def load_model():
-    # Загрузка модели YOLO
-    model = YOLO('../models/best.pt')
+def load_model(model_path):
+    try:
+        model = YOLO(model_path)
+        print("Model loaded successfully")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        model = None
     return model
 
 
@@ -21,19 +25,27 @@ def serialize_elements(elements):
 
 
 def process_image(image, model):
-    image_np = np.array(image)
-    image_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-    results = model(image_cv)  # Получаем результаты от модели
+    convert_to_612_792 = True  # СМЕНА РАСШИРЕНИЯ, ФЛАГ МОЖНО УБРАТЬ, КОГДА ПОФИКСИМ БАГИ
+    if convert_to_612_792:
+        width, height = image.size
+        if width > height:  # Горизонтальное изображение
+            image = image.resize((792, 612))
+        else:  # Вертикальное изображение
+            image = image.resize((612, 792))
+    image_np = np.array(image)  # Преобразуем PIL Image в numpy-формат
+
+    image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+    results = model(image_np)  # Передаем изображение напрямую в модель
 
     # Рисуем боксы и метки на изображении
-    annotated_image = results[0].plot()  # Используем метод plot() для отрисовки боксов
+    annotated_image = results[0].plot()  # Метод plot() рисует боксы и метки
 
     # Сериализация элементов (координат и меток объектов)
     elements = []
     for result in results:
-        boxes = result.boxes.xyxy.cpu().numpy()
-        confidences = result.boxes.conf.cpu().numpy()
-        classes = result.boxes.cls.cpu().numpy()
+        boxes = result.boxes.xyxy.cpu().numpy()  # Координаты боксов
+        confidences = result.boxes.conf.cpu().numpy()  # Уверенность
+        classes = result.boxes.cls.cpu().numpy()  # Классы
 
         for box, confidence, cls in zip(boxes, confidences, classes):
             x1, y1, x2, y2 = map(int, box)
@@ -43,23 +55,10 @@ def process_image(image, model):
                 "x2": x2,
                 "y2": y2,
                 "confidence": float(confidence),
-                "class": int(cls)
+                "class": result.names[int(cls)]
             })
-
-    # Преобразуем изображение обратно в RGB для отображения в Streamlit
-    annotated_image_rgb = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
 
     return {
         "elements": serialize_elements(elements),
-        "annotated_image": annotated_image_rgb
+        "annotated_image": annotated_image
     }
-
-
-def process_image_debug(image, model):
-    image_np = np.array(image)
-    image_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-    results = model(image_cv)  # Получаем "сырые" результаты
-
-    # Добавляем debug-вывод
-    print("Raw results:", results)  # В терминал для проверки
-    return results

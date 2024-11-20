@@ -479,8 +479,6 @@ def generate_document(path):
 
     element_funcs = []
     element_funcs += [lambda: add_heading(document, random_heading_format)] * random.randint(1, 3)
-    element_funcs += [lambda: add_numbered_list(document)] * random.randint(1, 3)
-    element_funcs += [lambda: add_bulleted_list(document)] * random.randint(1, 3)
     element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(1, 5)
     element_funcs += [lambda: get_table(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
@@ -502,7 +500,7 @@ def generate_document(path):
             add_footer(document, random_paragraph_format.font_size)
 
         # Изменение ориентации страницы на вертикальную с вероятностью 85%
-        if random.random() < 0.85:
+        if random.choice([True, False]):
             landscape = random.choice([True, False])
             change_orientation(document, landscape=landscape)
 
