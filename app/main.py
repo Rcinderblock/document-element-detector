@@ -4,8 +4,12 @@ import json
 import os
 from app_utils import load_model, process_image
 
+
+# Определение корневой директории проекта
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Загрузка модели
-models_dir = "../models/"
+models_dir = os.path.join(BASE_DIR, "../models/")
 model_files = [f for f in os.listdir(models_dir) if f.endswith('.pt')]
 
 # Выбор модели через Streamlit
@@ -35,7 +39,7 @@ if uploaded_file:
         st.success("Обработка завершена!")  # Отображаем сообщение внутри блока spinner
 
     # Сохранение JSON в директорию ./annotations
-    json_file_name = "latest_output.json"
+    json_file_name = os.path.join(BASE_DIR, "latest_output.json")
     with open(json_file_name, "w") as f:
         json.dump(results["elements"], f, indent=4)
 
