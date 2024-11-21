@@ -32,6 +32,7 @@ def process_image(image, model):
             image = image.resize((792, 612))
         else:  # Вертикальное изображение
             image = image.resize((612, 792))
+
     image_np = np.array(image)  # Преобразуем PIL Image в numpy-формат
 
     image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
