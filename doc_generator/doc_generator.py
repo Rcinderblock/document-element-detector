@@ -154,11 +154,16 @@ def add_paragraph(document, random_paragraph_format):
     
     paragraph_format.line_spacing = random_paragraph_format.line_spacing
 
-    # Генерация текста для абзаца
-    if random.choice([True, False]):
-        text = fake.text(max_nb_chars=400)
+    # с вероятностью 0.01 текст будет очень большой
+    if random.random() < 0.01:
+        text = fake.text(max_nb_chars=2500)
     else:
-        text = text_mimesis.text(quantity=random.randint(5, 10))
+        # Генерация текста для абзаца
+        if random.choice([True, False]):
+            text = fake.text(max_nb_chars=400)
+        else:
+            text = text_mimesis.text(quantity=random.randint(5, 15))
+
     run = paragraph.add_run(text)
     run.font.size = Pt(random_paragraph_format.font_size)
     run.font.name = random_paragraph_format.font_name
@@ -500,9 +505,8 @@ def generate_document(path):
             add_footer(document, random_paragraph_format.font_size)
 
         # Изменение ориентации страницы на вертикальную с вероятностью 85%
-        if random.choice([True, False]) :
-            landscape = random.choice([True, False])
-            change_orientation(document, landscape=landscape)
+        landscape = random.choice([True, False])
+        change_orientation(document, landscape=landscape)
 
         # Добавление заголовка
         add_heading(document, random_heading_format)
@@ -512,16 +516,24 @@ def generate_document(path):
 
         # Для фикса бага с мультиколонками
         last_was_heading = False
+        last_wast_paragraph = False
 
         random.shuffle(element_funcs)
+
+        # Чтобы не было случая что после параграфа мультиколонки
+        while 'add_multicolumn_text' in element_funcs[0].__code__.co_names:
+            element_funcs = element_funcs[1:]
         for func in element_funcs:
-            # Скипаем мультиколонку если прошлый элемент заголовок
-            if last_was_heading and 'add_multicolumn_text' in func.__code__.co_names:
+            # Скипаем мультиколонку если прошлый элемент заголовок или текст чтоб не срастались
+            if (last_was_heading or last_wast_paragraph) and 'add_multicolumn_text' in func.__code__.co_names:
                 continue
             if 'add_heading' in func.__code__.co_names:
                 last_was_heading = True
+            elif 'add_paragraph' in func.__code__.co_names:
+                last_wast_paragraph = True
             else:
                 last_was_heading = False
+                last_wast_paragraph = False
             func()
 
         if footnote_type == 0:

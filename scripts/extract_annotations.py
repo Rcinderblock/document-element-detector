@@ -196,7 +196,7 @@ class DocumentAnalyzer:
             page_dict['formula'] = self.merge_rects(page_dict['formula'], max_y_distance=5, max_x_distance=5)
 
             # Слияние боксов текстов (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
-            page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=8, max_x_distance=0)
+            page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=10, max_x_distance=0)
 
             # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
             page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
