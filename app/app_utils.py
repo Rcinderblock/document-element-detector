@@ -8,9 +8,9 @@ from ultralytics import YOLO
 def load_model(model_path):
     try:
         model = YOLO(model_path)
-        print("Model loaded successfully")
+        print("Модель успешно загружена")
     except Exception as e:
-        print(f"Error loading model: {e}")
+        print(f"Ошибка загрузки модели: {e}")
         model = None
     return model
 

@@ -1,61 +1,55 @@
-import streamlit as st
-from PIL import Image
 import json
+
+import streamlit as st
+import requests
+from PIL import Image
 import os
-from app_utils import load_model, process_image
+import numpy as np
 
+models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../models")
 
-# Определение корневой директории проекта
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Загрузка модели
-models_dir = os.path.join(BASE_DIR, "../models/")
 model_files = [f for f in os.listdir(models_dir) if f.endswith('.pt')]
 
-# Выбор модели через Streamlit
-selected_model_file = st.selectbox("Выберите модель", model_files)
-
-# Загрузка выбранной модели
-model_path = os.path.join(models_dir, selected_model_file)
-model = load_model(model_path)
+API_URL = "http://localhost:8000/process/"
 
 st.title("Компьютерное зрение: определение элементов документа")
+selected_model = st.selectbox("Выберите модель", model_files)
 
-# Загрузка изображения
-uploaded_file = st.file_uploader("Загрузите изображение", type=["png"])
+uploaded_file = st.file_uploader("Загрузите изображение", type=["png", "jpg", "jpeg"])
 
-if uploaded_file:
-    # Открываем изображение
-    with st.expander("Показать загруженное изображение"):
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Загруженное изображение", use_container_width=True)
+if uploaded_file and selected_model:
+    files = {"file": uploaded_file}
+    data = {"model_name": selected_model}
 
-    # Обработка изображения
-    with st.spinner("Обработка изображения..."):
-        results = process_image(image, model)
-        if results is None:
-            st.error("Ошибка обработки изображения. Пожалуйста, попробуйте еще раз.")
-            st.stop()
-        st.success("Обработка завершена!")  # Отображаем сообщение внутри блока spinner
 
-    # Сохранение JSON в директорию ./annotations
-    json_file_name = os.path.join(BASE_DIR, "latest_output.json")
-    with open(json_file_name, "w") as f:
-        json.dump(results["elements"], f, indent=4)
+    # Отправляем запрос к API для обработки изображения
+    with st.spinner(f"Обработка изображения..."):
+        response = requests.post(API_URL, files=files, data=data)
+        if response.status_code == 200:
+            results = response.json()
+            st.success("Обработка завершена!")
 
-    # Отображение JSON
-    with st.expander("Показать результаты в формате JSON"):
-        st.json(results["elements"])
+            # Отображение JSON с результатами
+            with st.expander("Показать результаты в формате JSON"):
+                st.json(results["elements"])
 
-    # Отображение размеченного изображения
-    annotated_image = Image.fromarray(results["annotated_image"])
-    st.image(annotated_image, caption="Размеченное изображение", use_container_width=True)
 
-    # Кнопка для скачивания JSON
-    with open(json_file_name, "r") as f:
-        st.download_button(
-            label="Скачать результат в формате JSON",
-            data=f,
-            file_name="latest_output.json",
-            mime="application/json"
-        )
+            annotated_image_array = np.array(results["annotated_image"])
+
+            annotated_image_array = annotated_image_array.astype(np.uint8)
+
+            # Создаем изображение
+            annotated_image = Image.fromarray(annotated_image_array)
+            st.image(annotated_image, caption="Размеченное изображение", use_container_width=True)
+            json_filename = "latest_output.json"
+            json_data = json.dumps(results["elements"], indent=4)
+
+            # Кнопка для скачивания JSON
+            st.download_button(
+                label="Скачать результаты в формате JSON",
+                data=json_data,
+                file_name=json_filename,
+                mime="application/json"
+            )
+        else:
+            st.error("Ошибка обработки изображения. Проверьте модель и файл.")
