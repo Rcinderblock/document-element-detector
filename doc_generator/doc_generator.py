@@ -500,7 +500,7 @@ def generate_document(path):
             add_footer(document, random_paragraph_format.font_size)
 
         # Изменение ориентации страницы на вертикальную с вероятностью 85%
-        if random.random() < 0.85:
+        if random.choice([True, False]) :
             landscape = random.choice([True, False])
             change_orientation(document, landscape=landscape)
 
