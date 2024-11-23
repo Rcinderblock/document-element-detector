@@ -7,7 +7,7 @@ from tqdm import tqdm
 DOCX_DIR = 'data/docx/'
 os.makedirs(DOCX_DIR, exist_ok=True)
 
-NUM_DOCUMENTS = 1
+NUM_DOCUMENTS = 10
 
 for i in tqdm(range(NUM_DOCUMENTS), desc="Генерация документов"):
     doc_path = os.path.join(DOCX_DIR, f'demo{i}.docx')

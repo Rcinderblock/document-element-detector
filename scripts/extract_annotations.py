@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 PDF_DIR = 'data/pdf/'
 ANNOTATIONS_DIR = 'data/annotations/'
 
+
 class ElementType(Enum):
     PICTURE = 0
     TABLE_SIGNATURE = 1
@@ -24,6 +25,7 @@ class ElementType(Enum):
     FOOTNOTE = 8
     TITLE = 9
     PARAGRAPH = 10
+
 
 class DocumentAnalyzer:
 
@@ -100,7 +102,9 @@ class DocumentAnalyzer:
                     block_bbox = block["bbox"]
 
                     if not self.line_spacing:
-                        if not self._is_header(block['bbox']) and not self._is_footer(block['bbox'], page.rect.height) and not self._is_footnote(block, page.rect.height):
+                        if not self._is_header(block['bbox']) and not self._is_footer(block['bbox'],
+                                                                                      page.rect.height) and not self._is_footnote(
+                                block, page.rect.height):
                             line = block
                             if not prev_line:
                                 prev_line = line
@@ -136,15 +140,15 @@ class DocumentAnalyzer:
 
                 if any(self._is_within_table(bbox, table) for table in table_areas):
                     continue
-                    
+
                 element_type = None
                 if block_type == 1:  # is_picture
                     page_dict['picture'].append(self._convert_coordinates(bbox))
                     element_type = ElementType.PICTURE
-                elif self._is_table_signature(text):
+                elif self._is_table_signature(text, block):
                     page_dict['table_signature'].append(self._convert_coordinates(bbox))
                     element_type = ElementType.TABLE_SIGNATURE
-                elif self._is_picture_signature(text):
+                elif self._is_picture_signature(text, block):
                     page_dict['picture_signature'].append(self._convert_coordinates(bbox))
                     element_type = ElementType.PICTURE_SIGNATURE
                 elif self._is_header(bbox):
@@ -186,20 +190,20 @@ class DocumentAnalyzer:
                     if paragraph_lines_count > 50 and len(paragraphs_font_sizes) > 5:
                         self.base_font_size = self.update_base_font_size(paragraphs_font_sizes)
 
-                self.prev_element = { 
+                self.prev_element = {
                     'element_type': element_type,
                     'text': text,
                     'bbox': bbox,
                 }
 
             # Слияние боксов формул если они рядом или пересекаются
-            page_dict['formula'] = self.merge_rects(page_dict['formula'], max_y_distance=5, max_x_distance=5)
+            page_dict['formula'] = self.merge_rects(page_dict['formula'], max_y_distance=5, max_x_distance=5, check_indent_diff=True)
 
             # Слияние боксов текстов (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
             page_dict['paragraph'] = self.merge_rects(page_dict['paragraph'], max_y_distance=10, max_x_distance=0)
 
             # Слияние боксов сносок (УДАЛИТЬ ЕСЛИ НЕОБХОДИМО)
-            page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=5, max_x_distance=0)
+            page_dict['footnote'] = self.merge_rects(page_dict['footnote'], max_y_distance=10, max_x_distance=0)
 
             page_dict['numbered_list'] = self.merge_rects(page_dict['numbered_list'], max_y_distance=8, max_x_distance=0)
 
@@ -207,13 +211,16 @@ class DocumentAnalyzer:
 
             page_dict['title'] = self.merge_rects(page_dict['title'], max_y_distance=8, max_x_distance=0)
 
+            page_dict['picture_signature'] = self.merge_rects(page_dict['picture_signature'], max_y_distance=5,
+                                                              max_x_distance=0)
             page_data.append(page_dict)
 
         doc.close()
         return page_data
 
-    def merge_rects(self, rectangles, max_y_distance=10, max_x_distance=20):
+    def merge_rects(self, rectangles, max_y_distance=10, max_x_distance=20, check_indent_diff=False, max_difference=40):
         def rectangles_intersect_or_nearby(rect1, rect2):
+
             # Проверка стандартного пересечения
             if not (rect1[2] < rect2[0] or rect2[2] < rect1[0] or rect1[3] < rect2[1] or rect2[3] < rect1[1]):
                 return True
@@ -227,6 +234,16 @@ class DocumentAnalyzer:
                 return True
 
             return False
+
+        def should_merge(rect1, rect2):
+            x1 = min(rect1[0], rect2[0])
+            y1 = min(rect1[1], rect2[1])
+            x2 = max(rect1[2], rect2[2])
+            y2 = max(rect1[3], rect2[3])
+
+            if abs(y1 - y2) > max_difference:
+                return False
+            return True
 
         def merge_rectangles(rect1, rect2):
             # Объединение двух пересекающихся или близко расположенных прямоугольников
@@ -245,6 +262,10 @@ class DocumentAnalyzer:
                 merged = False
                 i = 0
                 while i < len(rectangles):
+                    if check_indent_diff:
+                        if not should_merge(base_rect, rectangles[i]):
+                            i += 1
+                            continue
                     if rectangles_intersect_or_nearby(base_rect, rectangles[i]):
                         # Если пересечение или близость найдены, объединяем и убираем из списка
                         base_rect = merge_rectangles(base_rect, rectangles.pop(i))
@@ -319,7 +340,7 @@ class DocumentAnalyzer:
 
         return None
 
-    def _is_table_signature(self, text):
+    def _is_table_signature(self, text, block):
         pattern = r'(Табл\.|Таблица|Table|Таблица\.|Табл)\s*\d*'
         if text[0].isupper() and bool(re.match(pattern, text, re.IGNORECASE)):
             modified_text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
@@ -327,11 +348,23 @@ class DocumentAnalyzer:
                 return True
         return False
 
-    def _is_picture_signature(self, text):
+    def _is_picture_signature(self, text, block):
         pattern = r'(Рис\.|Рисунок|Figure|Рис|Рисунок\.)\s*\d*'
+
         if text[0].isupper() and bool(re.match(pattern, text, re.IGNORECASE)):
             modified_text = re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
             if modified_text[0] in ['-', '.', '—']:
+                if block['bbox'][1] < 90:
+                    print(block['bbox'])
+                    print(text)
+                return True
+
+        # Для слияния
+        if self.prev_element and self.prev_element['element_type'] == ElementType.PICTURE_SIGNATURE:
+            if 'foreign' in self.prev_element['text']:
+                print(self.prev_element['bbox'])
+                print(block['bbox'])
+            if abs(self.prev_element['bbox'][3] - block['bbox'][1]) < 1.5:
                 return True
         return False
 
@@ -343,22 +376,23 @@ class DocumentAnalyzer:
                     is_bold = 'bold' in span['font'].lower()
         if is_bold:
             return False
-        
+
         text = self.extract_text_from_block(block)
         bbox = tuple(block['bbox'])
         numbered_pattern = r'^\d+\.\s'
         left_indent = bbox[0]
         if bool(re.match(numbered_pattern, text)) and abs(left_indent - self.list_mark_left_indent) < 1e-05:
             return True
-        
+
         if not self.prev_element:
             return False
 
         space = bbox[1] - self.prev_element['bbox'][3]
 
-        if self.prev_element['element_type'] == ElementType.NUMBERED_LIST and space < self.line_spacing and abs(left_indent - self.list_text_left_indent) < 1e-05:
+        if self.prev_element['element_type'] == ElementType.NUMBERED_LIST and space < self.line_spacing and abs(
+                left_indent - self.list_text_left_indent) < 1e-05:
             return True
-        
+
         return False
 
     def _is_marked_list(self, block):
@@ -367,16 +401,17 @@ class DocumentAnalyzer:
         marked_pattern = r'^(\s*[-•*–·]\s+)'
         left_indent = round(bbox[0], 3)
         if bool(re.match(marked_pattern, text)) and abs(left_indent - self.list_mark_left_indent) < 1e-05:
-           return True
-        
+            return True
+
         if not self.prev_element:
             return False
 
         space = bbox[1] - self.prev_element['bbox'][3]
 
-        if self.prev_element['element_type'] == ElementType.MARKED_LIST and space < self.line_spacing and abs(left_indent - self.list_text_left_indent) < 1e-05:
+        if self.prev_element['element_type'] == ElementType.MARKED_LIST and space < self.line_spacing and abs(
+                left_indent - self.list_text_left_indent) < 1e-05:
             return True
-        
+
         return False
 
     def _is_footer(self, bbox, page_height):
@@ -447,11 +482,12 @@ class DocumentAnalyzer:
         if re.search(footnote_pattern, text.strip()):
             self.is_fn_pattern = True
             return True
-        
+
         if self.prev_element:
             space = bbox[1] - self.prev_element['bbox'][3]
 
-        if self.is_fn_format and self.prev_element['element_type'] == ElementType.FOOTNOTE and space < self.line_spacing:
+        if self.is_fn_format and self.prev_element[
+            'element_type'] == ElementType.FOOTNOTE and space < self.line_spacing:
             return True
 
         # Проверка на наличие верхних индексов (например, ¹, ², ³, ...)
