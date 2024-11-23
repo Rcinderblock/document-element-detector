@@ -247,7 +247,7 @@
 245,P ( i ) \sim Z ( i ) \sim e ^ { - F ( i ) } = e ^ { - ( U ( i ) - T S ( i ) ) }
 246,"w _ { d - 4 } = { \frac { 1 } { 2 4 } } ( d - 1 ) ( d - 2 ) ( d - 3 ) ( 3 d - 4 ) ~ ~ ~ ,"
 247,"H = { \frac { 1 } { 2 } } ( 1 + \mathrm { c o s h } 2 \alpha ) H _ { 0 } ,"
-248,\times
+248,\tilde { A } _ { l } = A _ { l } + \frac { 1 } { 2 } \sum _ { j = 1 } ^ { 2 n } \beta _ { j }
 249,\tilde { A } _ { l } = A _ { l } + \frac { 1 } { 2 } \sum _ { j = 1 } ^ { 2 n } \beta _ { j }
 250,"\int i \int j | k \rangle = \int c ( j , i ) | k \rangle + \int i | C ( j , k ) \rangle"
 251,2 \pi R ^ { ( I I ) } T _ { D ( p + 1 ) } ^ { ( I I ) } = T _ { D p } ^ { ( 0 ) } .
@@ -347,7 +347,7 @@
 345,"D _ { I + 1 } ^ { \, I } W ^ { 1 2 \ldots k } = 0 \; , \quad 1 \leq I < J \leq N - 1 \; ."
 346,\delta V = C ^ { \alpha } { \partial } _ { \alpha } V - C _ { W } V ~ .
 347,"V ( T ) = - m ^ { 2 } t r ( T ^ { 2 } ) + \lambda ^ { 2 } t r ( T ^ { 4 } ) + \ldots ,"
-348,\mathbf { A } =
+348,"0 > F ( z _ { 0 } ) = - 4 ( \omega + 1 ) \varepsilon ^ { 2 } z _ { 0 } \, ."
 349,"0 > F ( z _ { 0 } ) = - 4 ( \omega + 1 ) \varepsilon ^ { 2 } z _ { 0 } \, ."
 350,W ( x ) = \sum _ { i = 1 } ^ { r } \gamma _ { i i } R _ { i i }
 351,l = \int _ { \partial \Gamma } \operatorname { e x p } b \phi
@@ -914,7 +914,7 @@
 912,"x = x _ { 1 } - x _ { 2 } \ , \qquad p = { \frac { 1 } { 2 } } ( p _ { 1 } - p _ { 2 } ) ."
 913,"K ( \Lambda _ { 1 } , \Lambda _ { 2 } ; 0 ) = \delta ( \Lambda _ { 1 } - \Lambda _ { 2 } ) ."
 914,e ^ { - U } = l r + \frac { k q } { r } = l r + \frac { k } { ( d - 2 ) l r } .
-915,\Phi
+915,"\omega = - i ( C _ { 1 } \pm \sqrt { C _ { 1 } ^ { 2 } - C _ { 2 } } ) \ ,"
 916,"\omega = - i ( C _ { 1 } \pm \sqrt { C _ { 1 } ^ { 2 } - C _ { 2 } } ) \ ,"
 917,"( 1 , 0 , * , * , \cdots , * ) \quad \mathrm { o r } \quad ( 0 , 1 , * , * , \cdots , * ) ,"
 918,- \phi ^ { \prime \prime } + \frac { d V } { d \phi } = 0 .
