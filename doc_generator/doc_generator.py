@@ -499,7 +499,7 @@ def generate_document(path):
 
     element_funcs = []
     element_funcs += [lambda: add_heading(document, random_heading_format)] * random.randint(1, 3)
-    element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(1, 5)
+    element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(2, 5)
     element_funcs += [lambda: get_table(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: add_numbered_list(document, random_paragraph_format)] * random.randint(1, 2)

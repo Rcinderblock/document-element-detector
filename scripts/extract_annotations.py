@@ -554,7 +554,7 @@ class DocumentAnalyzer:
 
                 # Сохраняет картинки
                 output_path = os.path.join(output_dir,
-                                           f'{os.path.splitext(pdf_file)[0]}_annotated_page_{page_num + 1}.png')
+                                           f'{os.path.splitext(pdf_file)[0]}_{page_num + 1}.png')
                 img.save(output_path)
 
                 # Сохраняет JSON
