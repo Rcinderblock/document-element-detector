@@ -339,20 +339,19 @@ def add_numbered_list(document, random_paragraph_format):
     """ Вызвать функцию == добавить нумерованный список в документ"""
     list_type = 'List Number'
     num_items = random.randint(3, 7)
-    paragraph = None
     for _ in range(num_items):
-        list_item = fake.sentence(nb_words=random.randint(3, 15)) if random.choice([True, False]) else \
-            text_mimesis.text(quantity=1).split('.')[0]
+        list_item = fake.sentence(nb_words=random.randint(3, 15))
         paragraph = document.add_paragraph(style=list_type)
+        hidden_flag = '<n>'
         run = paragraph.add_run(list_item)
         run.font.size = Pt(random_paragraph_format.font_size)
         run.font.name = random_paragraph_format.font_name
+        hidden_run = paragraph.add_run(hidden_flag)
+        hidden_run.font.color.rgb = RGBColor(255, 255, 255)
         paragraph.paragraph_format.left_indent = Inches(0.85)
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
-        paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
-
-    paragraph.paragraph_format.space_after = Pt(5)
+        paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing
 
 
 def add_bulleted_list(document, random_paragraph_format):
@@ -361,18 +360,25 @@ def add_bulleted_list(document, random_paragraph_format):
     num_items = random.randint(3, 7)
     paragraph = None
     for _ in range(num_items):
-        list_item = fake.sentence(nb_words=random.randint(3, 15)) if random.choice([True, False]) else \
-            text_mimesis.text(quantity=1).split('.')[0]
-        paragraph = document.add_paragraph(style=list_type)
+        list_item = fake.sentence(nb_words=random.randint(3, 15))
+        paragraph = document.add_paragraph(style='List Number' if list_type == 0 else None)
+        hidden_flag = '<n>'
         run = paragraph.add_run(list_item)
         run.font.size = Pt(random_paragraph_format.font_size)
         run.font.name = random_paragraph_format.font_name
-        paragraph.paragraph_format.left_indent = Inches(0.85)
+        hidden_run = paragraph.add_run(hidden_flag)
+        hidden_run.font.color.rgb = RGBColor(255, 255, 255)
+
+        if list_type == 1:
+            paragraph.paragraph_format.first_line_indent = Inches(0.85)
+            paragraph.paragraph_format.left_indent = Inches(0)
+        else:
+            paragraph.paragraph_format.left_indent = Inches(0.85)
+
         paragraph.paragraph_format.space_before = Pt(0)
         paragraph.paragraph_format.space_after = Pt(0)
-        paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
-    
-    paragraph.paragraph_format.space_after = Pt(5)
+        paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing
+
 
 
 def add_footnotes_section(document, random_paragraph_format):
@@ -381,17 +387,22 @@ def add_footnotes_section(document, random_paragraph_format):
         fn_paragraph = document.add_paragraph()
         index_run = fn_paragraph.add_run(f'[{fn_count}] ')
         index_run.bold = True
-        fn_paragraph.add_run(fake.sentence(nb_words=random.randint(3, 15)))
-        fn_paragraph.runs[0].font.size = Pt(random_paragraph_format.font_size)
-        fn_paragraph.runs[0].font.name = random_paragraph_format.font_name
-        fn_paragraph.runs[1].font.size = Pt(random_paragraph_format.font_size)
-        fn_paragraph.runs[1].font.name = random_paragraph_format.font_name
+        fn_item = fake.sentence(nb_words=random.randint(3, 15))
+        run = fn_paragraph.add_run(fn_item)
+        hidden_flag = '<f>'
+        hidden_run = fn_paragraph.add_run(hidden_flag)
+        hidden_run.font.color.rgb = RGBColor(255, 255, 255)
+        index_run.font.size = Pt(random_paragraph_format.font_size)
+        index_run.font.name = random_paragraph_format.font_name
+        run.font.size = Pt(random_paragraph_format.font_size)
+        run.font.name = random_paragraph_format.font_name
+        hidden_run
         fn_paragraph.style = document.styles['Normal']
-        fn_paragraph.first_line_indent = random_paragraph_format.first_line_indent - 0.2
+        fn_paragraph.first_line_indent = random_paragraph_format.first_line_indent
         fn_paragraph.paragraph_format.left_indent = Pt(18)
         fn_paragraph.paragraph_format.space_after = Pt(2)
         fn_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        fn_paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing - 0.2
+        fn_paragraph.paragraph_format.line_spacing = random_paragraph_format.line_spacing
 
 
 def add_multicolumn_text(doc, based_font_size):

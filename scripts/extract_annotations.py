@@ -51,11 +51,21 @@ class DocumentAnalyzer:
             'formula': (228, 228, 100),  # Yellow
         }
         self.base_font_size = None
-        self.list_mark_left_indent = 133.22000122070312
-        self.list_text_left_indent = 151.22000122070312
         self.line_spacing = None
         self.prev_element = None
         self.is_fn_format = False
+        self.is_num_searching = False
+        self.is_mark_searching = False
+        self.is_fn_searching = False
+        self.num_stop_pattern = r"<n>"
+        self.mark_stop_pattern = r"<m>"
+        self.fn_stop_pattern = r"<f>"
+        self.num_stop_count = 0
+        self.num_count = 0
+        self.mark_stop_count = 0
+        self.mark_count = 0
+        self.fn_count = 0
+        self.fn_stop_count = 0
 
     def extract_coordinates(self, pdf_path):
         """Извлекает координаты всех элементов, классифицируя их"""
@@ -369,49 +379,43 @@ class DocumentAnalyzer:
         return False
 
     def _is_numbered_list(self, block):
-        is_bold = False
-        for line in block['lines']:
-            for span in line['spans']:
-                if not is_bold:
-                    is_bold = 'bold' in span['font'].lower()
-        if is_bold:
+        if self._is_title(block):
+            self.is_num_searching = False
             return False
-
+        
         text = self.extract_text_from_block(block)
-        bbox = tuple(block['bbox'])
-        numbered_pattern = r'^\d+\.\s'
-        left_indent = bbox[0]
-        if bool(re.match(numbered_pattern, text)) and abs(left_indent - self.list_mark_left_indent) < 1e-05:
+        numbered_pattern = r'\d+\.\s'
+        if bool(re.match(numbered_pattern, text)):
+            self.num_count += len(re.findall(numbered_pattern, text))
+            self.num_stop_count += len(re.findall(self.num_stop_pattern, text))
+            self.is_num_searching = not (self.num_count == self.num_stop_count)
+            return True
+        
+        if self.is_num_searching:
+            self.num_count += len(re.findall(numbered_pattern, text))
+            self.num_stop_count += len(re.findall(self.num_stop_pattern, text))
+            self.is_num_searching = not (self.num_count == self.num_stop_count)
             return True
 
-        if not self.prev_element:
-            return False
-
-        space = bbox[1] - self.prev_element['bbox'][3]
-
-        if self.prev_element['element_type'] == ElementType.NUMBERED_LIST and space < self.line_spacing and abs(
-                left_indent - self.list_text_left_indent) < 1e-05:
-            return True
-
+        self.is_num_searching = False
         return False
 
     def _is_marked_list(self, block):
         text = self.extract_text_from_block(block)
-        bbox = tuple(block['bbox'])
-        marked_pattern = r'^(\s*[-•*–·]\s+)'
-        left_indent = round(bbox[0], 3)
-        if bool(re.match(marked_pattern, text)) and abs(left_indent - self.list_mark_left_indent) < 1e-05:
+        marked_pattern = r'(\s*[-•*–·]\s+)'
+        if bool(re.match(marked_pattern, text)):
+            self.mark_count += len(re.findall(marked_pattern, text))
+            self.mark_stop_count += len(re.findall(self.mark_stop_pattern, text))
+            self.is_mark_searching = not (self.mark_count == self.mark_stop_count)
+            return True
+        
+        if self.is_mark_searching:
+            self.mark_count += len(re.findall(marked_pattern, text))
+            self.mark_stop_count += len(re.findall(self.mark_stop_pattern, text))
+            self.is_mark_searching = not (self.mark_count == self.mark_stop_count)
             return True
 
-        if not self.prev_element:
-            return False
-
-        space = bbox[1] - self.prev_element['bbox'][3]
-
-        if self.prev_element['element_type'] == ElementType.MARKED_LIST and space < self.line_spacing and abs(
-                left_indent - self.list_text_left_indent) < 1e-05:
-            return True
-
+        self.is_mark_searching = False
         return False
 
     def _is_footer(self, bbox, page_height):
@@ -481,13 +485,15 @@ class DocumentAnalyzer:
         footnote_pattern = r'^\[\^?\d+\]|\d+\)|\d+\.$|\[\d+\]|\d+[\)\]]'  # Шаблон для номеров сносок
         if re.search(footnote_pattern, text.strip()):
             self.is_fn_pattern = True
+            self.fn_count += len(re.findall(footnote_pattern, text))
+            self.fn_stop_count += len(re.findall(self.fn_stop_pattern, text))
+            self.is_fn_searching = not (self.fn_count == self.fn_stop_count)
             return True
-
-        if self.prev_element:
-            space = bbox[1] - self.prev_element['bbox'][3]
-
-        if self.is_fn_format and self.prev_element[
-            'element_type'] == ElementType.FOOTNOTE and space < self.line_spacing:
+        
+        if self.is_fn_searching:
+            self.fn_count += len(re.findall(footnote_pattern, text))
+            self.fn_stop_count += len(re.findall(self.fn_stop_pattern, text))
+            self.is_fn_searching = not (self.fn_count == self.fn_stop_count)
             return True
 
         # Проверка на наличие верхних индексов (например, ¹, ², ³, ...)
