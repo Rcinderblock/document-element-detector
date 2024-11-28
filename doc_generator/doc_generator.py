@@ -1,3 +1,5 @@
+import textwrap
+
 from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement
@@ -40,13 +42,17 @@ FFD700 FFDAB9 FFDEAD FFE4B5 FFE4C4 FFE4E1 FFEBCD FFEFD5 FFF0F5 FFF5EE FFF8DC
 FFFACD FFFAF0 FFFAFA FFFF00 FFFFE0 FFFFF0 FFFFFF"""
 
 
-def change_orientation(document, landscape=True):
+def change_orientation(document, make_vertical):
     """ Функция смены ориентации листа"""
     section = document.sections[-1]
-    if landscape and section.orientation == WD_ORIENT.PORTRAIT:
+
+    # Установить горизонтальную ориентацию
+    if section.orientation == WD_ORIENT.PORTRAIT and not make_vertical:
         section.orientation = WD_ORIENT.LANDSCAPE
         section.page_width, section.page_height = section.page_height, section.page_width
-    elif not landscape and section.orientation == WD_ORIENT.LANDSCAPE:
+
+    # Установить вертикальную ориентацию
+    elif section.orientation == WD_ORIENT.LANDSCAPE and make_vertical:
         section.orientation = WD_ORIENT.PORTRAIT
         section.page_width, section.page_height = section.page_height, section.page_width
 
@@ -154,11 +160,16 @@ def add_paragraph(document, random_paragraph_format):
     
     paragraph_format.line_spacing = random_paragraph_format.line_spacing
 
-    # Генерация текста для абзаца
-    if random.choice([True, False]):
-        text = fake.text(max_nb_chars=400)
+    # с этой вероятностью текст будет очень большой
+    if random.random() < 0.005:
+        text = fake.text(max_nb_chars=random.randint(2000, 4000))
     else:
-        text = text_mimesis.text(quantity=random.randint(5, 10))
+        # Генерация текста для абзаца
+        if random.choice([True, False]):
+            text = fake.text(max_nb_chars=random.randint(400, 1000))
+        else:
+            text = text_mimesis.text(quantity=random.randint(5, 15))
+
     run = paragraph.add_run(text)
     run.font.size = Pt(random_paragraph_format.font_size)
     run.font.name = random_paragraph_format.font_name
@@ -177,8 +188,9 @@ def get_table(doc, base_font_size):
     else:
         caption_text = f"Таблица. {caption_text}"
     if below_above == 1:
-        paragraph = doc.add_paragraph()
-        run = paragraph.add_run(caption_text)
+        paragraph = doc.add_paragraph(caption_text)
+        paragraph.paragraph_format.keep_with_next = True
+        run = paragraph.add_run()
         run.font.size = Pt(base_font_size)
 
     rows = random.randint(a=3, b=7)
@@ -212,8 +224,9 @@ def get_table(doc, base_font_size):
             row_cells[col].text = ' '.join(generic.text.words(quantity=random.randint(a=1, b=3)))
 
     if below_above == 0:
-        paragraph = doc.add_paragraph()
-        run = paragraph.add_run(caption_text)
+        paragraph = doc.add_paragraph(caption_text)
+        paragraph.paragraph_format.keep_with_next = True
+        run = paragraph.add_run()
         run.font.size = Pt(base_font_size)
 
 
@@ -272,6 +285,7 @@ def add_picture_with_caption(document, base_font_size):
 
     # Создание нового параграфа для рисунка
     paragraph = document.add_paragraph()  # Новый параграф для рисунка
+    paragraph.paragraph_format.keep_with_next = True
     run = paragraph.add_run()  # Добавляем пустой run для размещения изображения
 
     # Добавление рисунка
@@ -286,7 +300,13 @@ def add_picture_with_caption(document, base_font_size):
     # Создание подписи
     caption_prefix = random.choice(["Рис.", "Рисунок", "Figure"])
     picture_number = random.randint(1, 100)
-    caption_text = f"{caption_prefix} {picture_number}. {fake.sentence(nb_words=random.randint(3, 7))}"
+    limiter = random.randint(40, 60)
+    if random.random() < 0.01:
+        caption_text = f"{caption_prefix} {picture_number}. {fake.sentence(nb_words=random.randint(15, 50))}"
+        caption_text = '\n'.join(textwrap.wrap(caption_text, limiter))
+    else:
+        caption_text = f"{caption_prefix} {picture_number}. {fake.sentence(nb_words=random.randint(2, 7))}"
+        caption_text = '\n'.join(textwrap.wrap(caption_text, limiter))
 
     # Создаем подпись в новом параграфе
     caption_paragraph = document.add_paragraph(caption_text)  # Добавляем подпись
@@ -479,12 +499,12 @@ def generate_document(path):
 
     element_funcs = []
     element_funcs += [lambda: add_heading(document, random_heading_format)] * random.randint(1, 3)
-    element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(1, 5)
+    element_funcs += [lambda: add_paragraph(document, random_paragraph_format)] * random.randint(2, 5)
     element_funcs += [lambda: get_table(document, random_paragraph_format.font_size)] * random.randint(1, 2)
     element_funcs += [lambda: add_picture_with_caption(document, random_paragraph_format.font_size)] * random.randint(1, 2)
-    element_funcs += [lambda: add_numbered_list(document, random_paragraph_format)] * random.randint(1, 3)
+    element_funcs += [lambda: add_numbered_list(document, random_paragraph_format)] * random.randint(1, 2)
     element_funcs += [lambda: add_bulleted_list(document, random_paragraph_format)] * random.randint(1, 3)
-    element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 3)
+    element_funcs += [lambda: get_formula(document, latex_data)] * random.randint(1, 4)
     element_funcs += [lambda: add_multicolumn_text(document, random_paragraph_format.font_size)] * random.randint(1, 3)
 
     for i in range(NUM_ITERATIONS):
@@ -499,10 +519,9 @@ def generate_document(path):
             add_header(document, random_paragraph_format.font_size)
             add_footer(document, random_paragraph_format.font_size)
 
-        # Изменение ориентации страницы на вертикальную с вероятностью 85%
-        if random.choice([True, False]) :
-            landscape = random.choice([True, False])
-            change_orientation(document, landscape=landscape)
+        # Изменение ориентации страницы с вероятностью 15%
+        vertical = random.random() < 0.85
+        change_orientation(document, vertical)
 
         # Добавление заголовка
         add_heading(document, random_heading_format)
@@ -511,14 +530,26 @@ def generate_document(path):
         add_paragraph(document, random_paragraph_format)
 
         # Для фикса бага с мультиколонками
+        last_was_paragraph = True
         last_was_heading = False
-
         random.shuffle(element_funcs)
+
         for func in element_funcs:
-            # Скипаем мультиколонку если прошлый элемент заголовок
-            if last_was_heading and 'add_multicolumn_text' in func.__code__.co_names:
+            # Скипаем мультиколонку если прошлый элемент заголовок или текст чтоб не срастались
+
+            if (last_was_heading or last_was_paragraph) and 'add_multicolumn_text' in func.__code__.co_names:
                 continue
-            if 'add_heading' in func.__code__.co_names:
+            elif 'add_heading' in func.__code__.co_names:
+                last_was_heading = True
+            elif 'add_paragraph' in func.__code__.co_names:
+                last_was_paragraph = True
+            else:
+                last_was_heading = False
+                last_was_paragraph = False
+
+            if last_was_heading and 'get_table' in func.__code__.co_names:
+                continue
+            elif 'add_heading' in func.__code__.co_names:
                 last_was_heading = True
             else:
                 last_was_heading = False
